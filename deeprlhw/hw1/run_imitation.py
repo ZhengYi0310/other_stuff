@@ -1,6 +1,7 @@
 import pickle
 import tensorflow as tf
 import numpy as np
+import pandas as pd
 import tf_util
 import gym
 import load_policy
@@ -10,6 +11,7 @@ from keras.layers import Dense, Activation, Lambda, Dropout
 from keras import initializers
 from keras import optimizers
 from keras import callbacks
+
 
 def run_export_policy_gather_data(config):
     print('loading and building expert policy')
@@ -39,7 +41,7 @@ def run_export_policy_gather_data(config):
                 obs, r, done, _ = env.step(action)
                 totalr += r
                 steps += 1
-                if config['do_rendering']:
+                if config['do_rendering_expert']:
                     env.render()
                 if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
                 if steps >= max_steps:
@@ -60,7 +62,7 @@ def run_export_policy_gather_data(config):
 
 def train_NN_policy(config, data, env):
 
-    expert_data = pickle.load(open(config['expert_data_path']))
+    expert_data = pickle.load(open(config['expert_data_path']), 'rb')
 
     # Construct the models
     model = Sequential()
@@ -106,7 +108,7 @@ def test_NN_policy(model, config, env):
             obs, r, done, _ = env.step(action)
             totalr += r
             steps += 1
-            if config['do_rendering']:
+            if config['do_rendering_imitation']:
                 env.render()
             if steps % 100 == 0: print("%i/%i" % (steps, max_steps))
             if steps >= max_steps:
@@ -126,6 +128,75 @@ def test_NN_policy(model, config, env):
 
     pickle.dump(policy_data, open(config['policy_data_path'], 'wb'))
     return policy_data
+
+def compute_one_data_set_stats(data):
+    mean = data['returns'].mean()
+    std = data['returns'].std()
+    step = data['steps']
+    avg_percentage_fullsteps = (step / (step.max())).mean()
+
+    return pd.Series({'mean_returns': mean, 'std_returns': std, 'avg_percentage_fullsteps': avg_percentage_fullsteps})
+
+def analyze_one_experiment_data(config):
+    imitation_stats = compute_one_data_set_stats(pickle.load(open(config['policy_data_path']), 'rb'))
+    expert_stats = compute_one_data_set_stats(pickle.load(open(config['expert_data_path']), 'rb'))
+
+    data_frame = pd.DataFrame({'expert_stats': expert_stats, 'imitation_stats': imitation_stats})
+
+    print('Analyzing stats of a single experiment for {}'.format(config['env']))
+    print data_frame
+
+def load_default_config(env):
+    return {
+        'env_name': env,
+        'expert_policy_file': 'experts/{}.pkl'.format(env),
+        'envname': env,
+        'do_rendering_expert': True,
+        'do_rendering_policy': False,
+        'num_rollouts': 30,
+        'use_cached_data_for_training': True,
+        'cached_data_path': 'data/{}-cached.p'.format(env),
+        'expert_data_path': 'data/{}-expert.p'.format(env),
+        'imitation_data_path': 'data/{}-imitation.p'.format(env),
+        # neural net params
+        'learning_rate': 0.001,
+        'epochs': 30,
+        'drop_out_rate': 0.2
+    }
+
+def get_learning_rate_config_grid(env):
+    learning_rate_grid = np.logspace(-5, 0, 20)
+    configs = []
+    for lr in learning_rate_grid:
+        config = load_default_config(env)
+        config['use_cached_data_for_training'] = True
+        config['imitation_data_path'] = 'data/{}-imitation-lr={:.8f}.p'.format(env, lr)
+        config['learning_rate'] = lr
+        configs.append(config)
+    return configs
+
+def get_training_epoch_config_grid(env):
+    training_epoch_grid = [1, 2, 5, 10, 15 ,20 ,30, 50, 80, 100]
+    configs = []
+    for epochs in training_epoch_grid:
+        config = load_default_config(env)
+        config['use_cached_data_for_training'] = True
+        config['imitation_data_path'] = 'data/{}-imitation-epochs={:.8f}.p'.format(env, epochs)
+        config['epochs'] = epochs
+        configs.append(config)
+    return configs
+
+def get_dropout_rates_config_grid(env):
+    dropout_grid = [0.1, 0.15, 0.3, 0.5, 0.7, 0.9, 0.95]
+    configs = []
+    for dropout in dropout_grid:
+        config = load_default_config(env)
+        config['use_cached_data_for_training'] = True
+        config['imitation_data_path'] = 'data/{}-imitation-dropout={:.8f}.p'.format(env, dropout)
+        config['drop_out_rate'] = dropout
+        configs.append(config)
+    return configs
+
 
 
 
