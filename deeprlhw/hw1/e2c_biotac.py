@@ -133,17 +133,33 @@ for i in range(0, FLAGS.batch_size):
     print(x_sigma)
     # compute the posterior predictive probability for the x input of the next time stamp
     expected_log_likelihood = distributions.MultivariateNormalDiag(x_mu, x_sigma).prob(tf.reshape(x_next[i], [-1, FLAGS.input_dim]))
-    recon_loss.append(tf.reduce_sum(expected_log_likelihood))
+    recon_loss.append(tf.reduce_sum(expected_log_likelihood) / FLAGS.n_samples)
 # compute the kl divergence
-info_loss = InfoLost(distributions.MultivariateNormalDiag(mu, sigma))
-recon_loss = tf.reshape(recon_loss, [-1, FLAGS.batch_size])
+with tf.variable_scope("loss"):
+    info_loss = InfoLost(distributions.MultivariateNormalDiag(mu, sigma))
+    recon_loss = tf.reshape(recon_loss, [-1, FLAGS.batch_size])
+    total_loss = tf.reduce_sum(info_loss + recon_loss)
 print recon_loss
 print info_loss
+print total_loss
+for v in tf.all_variables():
+    print("%s : %s" % (v.name, v.get_shape()))
 
+pdb.set_trace()
 
+# construct the cost
+with tf.variable_scope("Optimizer"):
+    alpha = 1e-4
+    beta2 = 0.1
+    optimizer = tf.train.AdamOptimizer(alpha,  beta2=beta2)  # beta2=0.1
+    train_op = optimizer.minimize(total_loss)
 
-
-
+saver = tf.train.Saver() # saves variables learned during training
+# summaries
+tf.summary.scalar("total_loss", total_loss)
+tf.summary.scalar("recon_loss", tf.reduce_mean(recon_loss))
+tf.summary.scalar("info_loss", tf.reduce_mean(info_loss))
+tf.summary.merge_all()
 
 
 mvn = distributions.MultivariateNormalDiag([[1., 2, 3], [11, 22, 33]] ,
