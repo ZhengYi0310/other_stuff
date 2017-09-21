@@ -17,6 +17,7 @@ import os
 import ipdb as pdb
 import seaborn as sns
 
+
 sns.set_style("whitegrid")
 
 flags = tf.app.flags
