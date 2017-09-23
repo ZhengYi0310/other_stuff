@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import linalg
 import matplotlib
 from matplotlib import pyplot as plt
 
@@ -44,21 +45,41 @@ class SPGPs(object):
             x_pseudo = self.x_pseudo * np.sqrt(self.b)
             # The kernel matrix for the pseudo-inputs
             self.K_mm = self.compute_kernel_mat(x_pseudo, x_pseudo.transpose())
-            self.K_mm = self.c * (np.exp(-0.5 * self.K_mm)) + self.sigma * np.identity(self.M)
+            self.K_mm = self.c * (np.exp(-0.5 * self.K_mm)) + self.jitter * np.identity(self.M)
             # The kernel matrix for the training inputs
             self.K_xx = self.compute_kernel_mat(X, X.transpose())
-            self.K_xx = self.c * (np.exp(-0.5 * self.K_xx)) + self.sigma * np.identity(self.N)
+            self.K_xx = self.c * (np.exp(-0.5 * self.K_xx)) + self.jitter * np.identity(self.N)
             # The kernel matrix between the training points and the pseudo inputs
-            
-
-    def compute_kernel_mat(self, X1, X2):
-        kernel = np.dot(X1, X2.transpose())
-        kernel = 2 * np.diag(np.diag(kernel)) - 2 * kernel
-        return np.exp(-0.5 * kernel)
+            self.K_xm = -2 * np.dot(X, x_pseudo.transpose()) + np.repeat(np.sum(np.square(X), axis=1)[:, None], self.M, axis=1) \
+                        + np.repeat(np.sum(np.square(x_pseudo.transpose()), axis=0)[:, None], self.N, axis=0)
 
 
-a = np.array([[1, 2]])
+        def compute_kernel_mat(self, X1, X2):
+            kernel = np.dot(X1, X2.transpose())
+            kernel = 2 * np.diag(np.diag(kernel)) - 2 * kernel
+            return np.exp(-0.5 * kernel)
+
+        def marginal_likelihood(self):
+            '''
+            Matthias Seeger, et al, Fast Forward Selection to Speed Up Sparse Gaussian Process Regression, 2003
+
+            :return: the negative marginal log likelihood
+            '''
+            # First do Cholesky Factorization for K_mm
+            L = linalg.cholesky(self.K_mm)
+            V = np.dot(linalg.inv(L) * self.K_xm.transpose())
+            M = np.dot(V, V.transpose()) + self.sigma * np.identity(V.shape[0])
+            Lm = linalg.cholesky(M)
+            norm = 
+
+
+
+
+a = np.array([[1], [2]])
 b = np.array([[3]])
-d = np.hstack((a ,b))
+d = np.repeat(a, 2, axis=1)
+e = np.sum(d, axis=1)[:, None]
+f = np.repeat(np.square(e), 2, axis=1)
+print linalg.cholesky(f)
 print d
-print b
+print e
