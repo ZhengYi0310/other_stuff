@@ -70,7 +70,8 @@ class SPGPs(object):
             V = np.dot(linalg.inv(L) * self.K_xm.transpose())
             M = np.dot(V, V.transpose()) + self.sigma * np.identity(V.shape[0])
             Lm = linalg.cholesky(M)
-            norm = 
+            beta = np.dot(np.dot(linalg.inverse(Lm), V), y)
+
 
 
 
