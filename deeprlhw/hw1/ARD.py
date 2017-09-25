@@ -73,29 +73,38 @@ class ARD(object):
 
 
 
-def createGenerator() :
-    yield 4*4
-    mylist = range(3)
-    for i in mylist:
-        yield i*i
-
-# mygenerator = createGenerator() # create a generator
-# print(mygenerator) # mygenerator is an object!
-# for i in mygenerator:
-#     print(i)
-
-a = np.array([[1, 2],[3, 4], [5, 6]])
-b = np.array([[0, 0],[1, 0]])
-c = np.array([0.1 , 0.1])
-print c.ndim
-e = 0.5
-model = ARD(c ,e)
-print model.get_hyper()
-hyper = np.r_[0.4, np.array([0.01, 0.01])]
-print hyper.shape
-model.set_hyper(hyper)
-print model.get_hyper()
-# print c
-# print np.sum(c, axis=-1)
-# print np.sum(c, axis=-1)[:,:,None].shape
-# print c * np.sum(c, axis=-1)[:,:,None]
+# def createGenerator() :
+#     yield 4*4
+#     mylist = range(3)
+#     for i in mylist:
+#         yield i*i
+#
+# # mygenerator = createGenerator() # create a generator
+# # print(mygenerator) # mygenerator is an object!
+# # for i in mygenerator:
+# #     print(i)
+#
+# a = np.array([[1, 2],[3, 4], [5, 6]])
+# b = np.array([[0, 0],[1, 0]])
+# c = np.array([0.1 , 0.1])
+# d = np.array([[1, 2, 3]])
+# # print c.ndim
+# e = 0.5
+# model = ARD(c ,e)
+# # a = []
+# # a.append([("kern.%s" % p[0],) + p[1:] for p in model._params()])
+# # a.append([('mean, 1, Falsue')])
+# # print a
+# # hyper = np.r_[0.4, np.array([0.01, 0.01])]
+# # a = np.array([[1, 2],[3, 4], [5, 6]])
+# # print hyper.shape
+# # model.set_hyper(hyper)
+# print model.get_hyper()
+#
+# print len(a)
+# print a.shape[0]
+# print np.dot(a, c) + d[None]
+# # print c
+# # print np.sum(c, axis=-1)
+# # print np.sum(c, axis=-1)[:,:,None].shape
+# # print c * np.sum(c, axis=-1)[:,:,None]

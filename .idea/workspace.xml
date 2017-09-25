@@ -4,6 +4,7 @@
     <list default="true" id="dee858b3-6f16-4f9a-bf66-74b6ce61d091" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/deeprlhw/hw1/ARD.py" afterPath="$PROJECT_DIR$/deeprlhw/hw1/ARD.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py" afterPath="$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -24,7 +25,7 @@
       <file leaf-file-name="run_expert.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/run_expert.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="931">
+            <state relative-caret-position="38">
               <caret line="54" column="34" selection-start-line="54" selection-start-column="34" selection-end-line="54" selection-end-column="34" />
               <folding>
                 <element signature="e#312#325#0" expanded="true" />
@@ -33,25 +34,25 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="SPGPs.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py">
+      <file leaf-file-name="ARD.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/ARD.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1558">
-              <caret line="85" column="7" selection-start-line="85" selection-start-column="7" selection-end-line="85" selection-end-column="7" />
+            <state relative-caret-position="1026">
+              <caret line="109" column="42" selection-start-line="109" selection-start-column="42" selection-end-line="109" selection-end-column="42" />
               <folding>
-                <element signature="e#0#18#0" expanded="true" />
+                <element signature="e#41#72#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="ARD.py" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/ARD.py">
+      <file leaf-file-name="SPGPs.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="418">
-              <caret line="96" column="23" selection-start-line="96" selection-start-column="23" selection-end-line="96" selection-end-column="23" />
+            <state relative-caret-position="228">
+              <caret line="107" column="22" selection-start-line="107" selection-start-column="22" selection-end-line="107" selection-end-column="22" />
               <folding>
-                <element signature="e#41#72#0" expanded="true" />
+                <element signature="e#0#18#0" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -102,9 +103,9 @@
         <option value="$PROJECT_DIR$/deeprlhw/hw1/gp_classification.py" />
         <option value="$PROJECT_DIR$/deeprlhw/hw1/kernel_playground.py" />
         <option value="$PROJECT_DIR$/deeprlhw/hw1/multiclassification_gpflow.py" />
-        <option value="$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py" />
         <option value="$PROJECT_DIR$/deeprlhw/hw1/utils.py" />
         <option value="$PROJECT_DIR$/deeprlhw/hw1/ARD.py" />
+        <option value="$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py" />
       </list>
     </option>
   </component>
@@ -205,7 +206,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/deeprlhw/hw1/ARD.py" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
     <property name="settings.editor.splitter.proportion" value="0.2" />
   </component>
@@ -368,7 +369,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <module name="openai_gym_projects" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/deeprlhw/hw1/ARD.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <method />
@@ -773,7 +774,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/run_expert.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="931">
+        <state relative-caret-position="38">
           <caret line="54" column="34" selection-start-line="54" selection-start-column="34" selection-end-line="54" selection-end-column="34" />
           <folding>
             <element signature="e#312#325#0" expanded="true" />
@@ -785,16 +786,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-1000">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1558">
-          <caret line="85" column="7" selection-start-line="85" selection-start-column="7" selection-end-line="85" selection-end-column="7" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -818,10 +809,20 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/ARD.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="418">
-          <caret line="96" column="23" selection-start-line="96" selection-start-column="23" selection-end-line="96" selection-end-column="23" />
+        <state relative-caret-position="1026">
+          <caret line="109" column="42" selection-start-line="109" selection-start-column="42" selection-end-line="109" selection-end-column="42" />
           <folding>
             <element signature="e#41#72#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/deeprlhw/hw1/SPGPs.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="228">
+          <caret line="107" column="22" selection-start-line="107" selection-start-column="22" selection-end-line="107" selection-end-column="22" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
           </folding>
         </state>
       </provider>
