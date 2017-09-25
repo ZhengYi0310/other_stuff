@@ -119,6 +119,51 @@ class GP(object):
 
         return f
 
+    def posterior(self, X, grad=False):
+        """
+        Return the marginal posterior. This should return the mean and variance
+                of the given points, and if `grad == True` should return their
+                derivatives with respect to the input location as well (i.e. a
+                4-tuple).
+        """
+        return self._marginal_posterior(np.array(X, ndmin=2, dtype=float), grad)
 
+    def _update(self):
+        """
+        Update any internal parameters (ie sufficient statistics) given the
+        entire set of current data.
+        """
+        raise NotImplementedError
+
+    def _updateinc(self):
+        """
+        Update any internal parameters given additional data in the form of
+        input/output pairs `X` and `y`. This method is called before data is
+        appended to the internal data-store and no subsequent call to `_update`
+        is performed.
+        """
+        raise NotImplementedError
+
+    def _full_posterior(self):
+        """
+        Compute the full posterior at points `X`. Return the mean vector and
+        full covariance matrix for the given inputs.
+        """
+        raise NotImplementedError
+
+    def _marg_posterior(self):
+        """
+        Compute the marginal posterior at points `X`. Return the mean and
+        variance vectors for the given inputs. If `grad` is True return the
+        gradients with respect to the inputs as well.
+        """
+        raise NotImplementedError
+
+    def loglikelihood(self, grad=False):
+        """
+        Return the marginal loglikelihood of the data. If `grad == True` also
+        return the gradient with respect to the hyperparameters.
+        """
+        raise NotImplementedError
 m = np.array([[2,0], [0,2]])
 print slg.cholesky(m)
