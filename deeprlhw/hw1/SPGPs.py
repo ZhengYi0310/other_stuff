@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as slg
-import ARD
+from ARD import ARD
+from likelihood import Gaussianlikelihood
 
 
 class GP(object):
@@ -40,15 +41,15 @@ class GP(object):
         def indent(pre, text):
             return pre + ('\n' + ' ' * len(pre)).join(text.splitlines())
 
-        return indent(self.__class__.__name__ + '(', '\n'.join([indent(indent('likehood=', repr(self.likelihood_)),
+        return indent(self.__class__.__name__ + '(', '\n'.join([indent('likehood=', repr(self.likelihood_)),
                                                                        indent('kernel=', repr(self.kernel_)),
-                                                                       indent('mean=', str(self.mean_)))]) + ')')
+                                                                       indent('mean=', str(self.mean_))]) + ')')
 
-    def __param__(self):
+    def _params(self):
         params = []
-        params.append([('kernel.%s' % p[0] + p[1:] for p in self.kernel_.__param__())])
-        params.append([('likelihood.%s' % p[0] + p[1:] for p in self.kernel_.__param__())])
-        params.append([('mean, 1, Falsue')])
+        params.append([('kernel.%s' % p[0] + p[1:] for p in self.kernel_._params())])
+        params.append([('likelihood.%s' % p[0] + p[1:] for p in self.likelihood_._params())])
+        params.append([('mean, 1, False')])
         return params
 
     def get_hyper(self):
@@ -135,7 +136,7 @@ class GP(object):
         """
         raise NotImplementedError
 
-    def _updateinc(self):
+    def _updateinc(self, X, y):
         """
         Update any internal parameters given additional data in the form of
         input/output pairs `X` and `y`. This method is called before data is
@@ -144,14 +145,14 @@ class GP(object):
         """
         raise NotImplementedError
 
-    def _full_posterior(self):
+    def _full_posterior(self, X):
         """
         Compute the full posterior at points `X`. Return the mean vector and
         full covariance matrix for the given inputs.
         """
         raise NotImplementedError
 
-    def _marg_posterior(self):
+    def _marginal_posterior(self, X, grad=False):
         """
         Compute the marginal posterior at points `X`. Return the mean and
         variance vectors for the given inputs. If `grad` is True return the
@@ -165,5 +166,28 @@ class GP(object):
         return the gradient with respect to the hyperparameters.
         """
         raise NotImplementedError
+
+class BasicGP(GP):
+    """
+    Basic Gaussian Process which assumes an ARD kernel and a Gaussian likelihood,
+    therefore it can perform exact inference
+    """
+    def __init__(self, c ,b ,sigma, mu=0, ndim=None):
+        likelihood = Gaussianlikelihood(sigma)
+        kernel = ARD(c, b, ndim)
+        super(BasicGP, self).__init__(likelihood, kernel, mu)
+        self.R_ = None
+        self.a_ = None
+
+    def reset(self):
+        for attr in 'Ra':
+            setattr(self, attr + '_', None)
+        super(BasicGP, self).reset()
+
+    def _update(self):
+        signal_variance = self.likelihood_._variance()
+        K = self.kernel_.get(self.X_) + signal_variance * np.eye(len(self.X_))
+        self.R_ = 
 m = np.array([[2,0], [0,2]])
+print np.reshape(m.ravel() + np.random.normal(0, 0.1, 4), (2, 2))
 print slg.cholesky(m)
