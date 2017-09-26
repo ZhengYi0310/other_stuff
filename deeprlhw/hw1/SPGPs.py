@@ -187,7 +187,77 @@ class BasicGP(GP):
     def _update(self):
         signal_variance = self.likelihood_._variance()
         K = self.kernel_.get(self.X_) + signal_variance * np.eye(len(self.X_))
-        self.R_ = 
+        r = self.Y_ - self.mean_
+        self.R_ = slg.cholesky(K)
+        self.a_ = slg.solve_triangular(self.R_, r, trans=True)
+
+    def _update_inc(self, X, y):
+        signal_variace = self.likelihood_._variance()
+        K_ss = self.kernel_.get(X) + signal_variace * np.eye(len(X))
+        K_xs = self.kernel_.get(self.X_, X)
+        r = y - self.mean_
+        n = self.R_.shape[0]
+        m = K_ss.shape[0]
+        K_xs = slg.solve_triangular(self.R_, K_xs, trans=True)
+        K_ss = slg.cholesky(K_ss - np.dot(K_xs.T, K_xs))
+        k_ss = np.dot(K_ss.T, self.a_)
+
+        # grow the new cholesky and then use this to grow the vector a
+        self.R_ = np.r_[np.c_[self.R_, K_xs], np.c_[np.zeros(m , n), K_xs]]
+        self.a_ = np.r_[self.a_, slg.solve_triangular(K_ss, r - k_ss, trans=True)]
+
+    def _full_posterior(self, X):
+        # grab the prior mean and covariance
+        mu = np.full(X.shape[0], self.mean_)
+        Sigma = self.kernel_.get(X)
+
+        if self.X_ is not None:
+            K = self.kernel_.get(self.X_, X)
+            V =slg.solve_triangular(self.R_, K, trans=True)
+            # add the contribution to the mean coming from the posterior and
+            # subtract off the information gained in the posterior from the
+            # prior variance.
+            mu += np.dot(V.t, self.a_)
+            Sigma -= np.dot(V.T, V)
+
+        return mu, Sigma
+
+    def _marg_posterior(self, X, grad=False):
+        # grab the prior mean and variance.
+        mu = np.full(X.shape[0], self.mean_)
+        s2 = self.kernel_.dget(X)
+
+        if self.X_ is not None:
+            K = self.kernel_.get(self.X_, X)
+            RK = slg.solve_triangular(self.R_, K, trans=True)
+
+            # add the contribution to the mean coming from the posterior and
+            # subtract off the information gained in the posterior from the
+            # prior variance.
+            mu += np.dot(RK.T, self.a_)
+            s2 -= np.sum(RK ** 2, axis=0)
+
+        if not grad:
+            return (mu, s2)
+
+        # Get the prior gradients.
+        dmu = np.zeros_like(X)
+        ds2 = np.zeros_like(X)
+
+        # NOTE: the above assumes a constant mean and stationary kernel (which
+        # we satisfy, but should we change either assumption...).
+
+        if self.X_ is not None:
+            dK = self.kernel_.grady(self.X_, X)
+            dK = dK.reshape(self.ndata, -1)
+
+            RdK = slg.solve_triangular(self.R_, dK, trans=True)
+            dmu += np.dot(RdK.T, self.a_).reshape(X.shape)
+
+            RdK = np.rollaxis(np.reshape(RdK, (-1,) + X.shape), 2)
+            ds2 -= 2 * np.sum(RdK * RK, axis=1).T
+
+
 m = np.array([[2,0], [0,2]])
 print np.reshape(m.ravel() + np.random.normal(0, 0.1, 4), (2, 2))
 print slg.cholesky(m)

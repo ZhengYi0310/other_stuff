@@ -27,8 +27,8 @@
       <file leaf-file-name="SPGPs.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/SPGPs.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="385">
-              <caret line="189" column="18" lean-forward="false" selection-start-line="189" selection-start-column="18" selection-end-line="189" selection-end-column="18" />
+            <state relative-caret-position="328">
+              <caret line="256" column="40" lean-forward="true" selection-start-line="256" selection-start-column="40" selection-end-line="256" selection-end-column="40" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
               </folding>
@@ -67,7 +67,7 @@
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="-103" />
+    <option name="x" value="-233" />
     <option name="y" value="24" />
     <option name="width" value="1253" />
     <option name="height" value="1056" />
@@ -222,7 +222,7 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-103" y="24" width="1253" height="1056" extended-state="4" />
+    <frame x="-233" y="24" width="1253" height="1056" extended-state="4" />
     <editor active="true" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.37270552" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
@@ -285,8 +285,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/SPGPs.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="385">
-          <caret line="189" column="18" lean-forward="false" selection-start-line="189" selection-start-column="18" selection-end-line="189" selection-end-column="18" />
+        <state relative-caret-position="328">
+          <caret line="256" column="40" lean-forward="true" selection-start-line="256" selection-start-column="40" selection-end-line="256" selection-end-column="40" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
           </folding>
