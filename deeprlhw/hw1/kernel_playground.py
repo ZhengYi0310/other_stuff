@@ -48,6 +48,8 @@ print(sess.run(result4))
 sess.close()
 
 a = np.array([[1.0, 2.0, 3.0],[2.0, 8.0, 8.0], [3.0, 8.0, 35.0]])
+b = np.array([[1, 2, 3]])
+assert (a.shape == b.shape), 'asdsad {}'.format(2)
 print np.cov(a.T)
 evecs, evals = np.linalg.eigh(np.cov(a.T))
 print evals
