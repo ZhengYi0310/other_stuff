@@ -112,3 +112,20 @@ class BayesianGPLVM(GPModel):
         assert X_prior_var.shape[1] == self.num_latent
         assert X_prior_mean.shape[0] == self.num_data
         assert X_prior_mean.shape[1] == self.num_latent
+
+    @property
+    def _X_variational_conv(self):
+        if self.X_variational_std.get_shape().ndims == 3:
+            return tf.matmul(tf.transpose(self.X_std, perm=[2, 0, 1]), tf.transpose(self.X_std, perm=[2, 1, 0]))
+        elif self.X_variational_std.get_shape().ndims == 2:
+            return tf.square(self.X_variational_std)
+
+    def build_likelihood(self):
+        """
+        Construct a tensorflow function to compute the variational bound on 
+        the marginal likelihood.
+        :return: the negative of the variational bound.
+        """
+        num_inducing = tf.shape(self.Z)[0]
+        # Compute the psi statistics.
+        psi0 = tf.reduce_sum(self.kern.eKdiag(tf.transpose(self.X_variational_mean), tf.transpose(self._X_variational_var)), 0)
