@@ -33,6 +33,7 @@ sess = tf.InteractiveSession()
 mat_r = tf.convert_to_tensor(np.array([[1.0, 2.0, 3.0]]))
 mat_r = tf.cast(mat_r, tf.float64)
 mat_l = tf.convert_to_tensor(np.array([[1.0, 0.0, 0.0],[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]))
+np.hstack(map(lambda gradients: gradients.flatten(), mat_l))
 L = tf.cholesky(mat_l)
 shape = tf.stack([1, 1, tf.shape(mat_l)[1]])
 print(sess.run(shape))
@@ -60,3 +61,14 @@ sess.close()
 # i = np.argsort(evecs)[::-1]
 # W = evals[:, i]
 # print W
+sess = tf.InteractiveSession()
+a = [0, 3, 7]
+y = [[2, 1]]
+p = tf.gather(a, y)
+print(sess.run(p))
+params = [['a', 'b', 'c'], ['c', 'd', 'f'], ['e', 'k', 'g']]
+indices = tf.convert_to_tensor([[2]])
+c = tf.convert_to_tensor([3])
+print(sess.run(tf.expand_dims(c, -1)))
+p = tf.gather_nd(tf.transpose(params), indices)
+print(sess.run(p))
