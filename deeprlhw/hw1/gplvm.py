@@ -4,7 +4,6 @@ from gpflow.model import GPModel
 from gpflow.gpr import GPR
 from gpflow.param import Param
 from gpflow import  kullback_leiblers
-from gpflow.tf_wraps import eye
 from gpflow.mean_functions import Zero
 from gpflow import likelihoods
 from gpflow import transforms
@@ -57,7 +56,7 @@ class GPLVM(GPR):
 
 
 class BayesianGPLVM(GPModel):
-    def __init__(self, X_variational_mean, X_variational_std, Y, Kern, M , Z=None, X_prior_mean=None, X_prior_var = None):
+    def __init__(self, X_variational_mean, X_variational_std, Y, Kern, M , Z=None, X_prior_mean=None, X_prior_var=None):
         """
         Initialise Bayesian GPLVM object. This method only works with a Gaussian likelihood.
         :param X_variational_mean: initial latent variational distribution mean, size N (number of points) x Q (latent dimensions)
@@ -116,9 +115,9 @@ class BayesianGPLVM(GPModel):
 
     @property
     def _X_variational_conv(self):
-        if self.X_variational_std.get_shape().ndims == 3:
+        if tf.shape(self.X_variational_std).ndims == 3:
             return tf.matmul(self.X_variational_std, tf.transpose(self.X_variational_std, perm=[0, 2, 1]))
-        elif self.X_variational_std.get_shape().ndims == 2:
+        elif tf.shape(self.X_variational_std).ndims == 2:
             return tf.square(self.X_variational_std)
 
     def build_likelihood(self):
@@ -146,8 +145,6 @@ class BayesianGPLVM(GPModel):
         log_det_B = 2. * tf.reduce_sum(tf.log(tf.matrix_diag_part(LB)))
         c = tf.matrix_triangular_solve(LB, tf.matmul(A, self.Y), lower=True)
 
-
-
         # compute the marginal log likelihood
         D = tf.cast(tf.shape(self.Y)[1], float_type)
         ND = tf.cast(tf.size(self.Y), float_type)
@@ -155,5 +152,34 @@ class BayesianGPLVM(GPModel):
         bound += -0.5 * tf.reduce_sum(tf.square(self.Y)) / sigma2
         bound += -0.5 * D * log_det_B
         bound += tf.reduce_sum(tf.square(c))
-        bound += -0.5 * D * psi0 / sigma2
+        bound += -0.5 * D * tf.reduce_sum(psi0) / sigma2
         bound += 0.5 * D * tf.reduce_sum(tf.matrix_diag_part(AAT))
+
+
+        # compute the KL[q(x) || p(x)] TODO: the dynamics case
+        KL = tf.convert_to_tensor(0, dtype=float_type)
+        if tf.shape(self.X_variational_std).ndims == 2:
+            # fully factorised.
+            dX_variational_conv = self._X_variational_conv
+            NQ = tf.cast(tf.size(self.X_variational_mean), float_type)
+            KL = -0.5 * NQ + \
+                 0.5 * tf.reduce_sum(tf.log(self.X_prior_var)) - \
+                 0.5 * tf.reduce_sum(dX_variational_conv) + \
+                 0.5 * tf.reduce_sum((tf.square(self.X_variational_mean - self.X_prior_mean) + dX_variational_conv) / self.X_prior_var)
+
+        if tf.shape(self.X_variational_std).ndims == 3:
+            # prior fully factorised, variational distribution factorised along data points
+            dX_prior_var = tf.eye(self.num_latent)
+            NQ = tf.cast(tf.size(self.X_variational_mean), float_type)
+            L_variational = tf.cholesky(self._X_variational_conv)
+            tmp = tf.cholesky(tf.matrix_triangular_solve(L_variational, tf.matrix_triangular_solve(tf.transpose(L_variational, perm=[0, 2, 1]), dX_prior_var, lower=True), lower=True))
+            log_det_tmp = 2. * tf.reduce_sum(tf.log(tf.matrix_diag_part(tmp)))
+            KL = -0.5 * NQ \
+                 + 0.5 * log_det_tmp \
+                 + tf.reduce_sum(self._X_variational_conv) \
+                 + 0.5 * tf.reduce_sum(tf.square(self.X_variational_mean - self.X_prior_mean))
+
+        bound -= KL
+        return bound
+
+
