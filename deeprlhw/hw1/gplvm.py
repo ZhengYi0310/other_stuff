@@ -182,4 +182,52 @@ class BayesianGPLVM(GPModel):
         bound -= KL
         return bound
 
+    def build_predict(self, Xnew, full_conv=False):
+        """
+        Compute the mean and variance of the latent function at some new points Xnew,
+        very similar to SGPR prediction, difference is that deterministic kernel terms are replaced with
+        kernel expectation w.r.t variational distribution.
+        :param Xnew: Points to predict at
+        """
+        num_inducing = tf.shape(self.Z)[0]
+        # Compute the psi statistics.
+        psi1 = self.kern.eKxz(self.Z, self.X_variational_mean, self._X_variational_conv)
+        psi2 = tf.reduce_sum(self.kern.eKzxKxz(self.Z, self.X_variational_mean, self._X_variational_conv), 0)
+        Kuu = self.kern.K(self.Z) + tf.eye(num_inducing, dtype=float_type) * 1e-6
+        Kus = self.kern.K(self.Z, Xnew)
+        L = tf.cholesky(Kuu)
+        sigma2 = self.likelihood.variance
+        sigma = tf.sqrt(sigma2)
+
+        # Pre-computation
+        A = tf.matrix_triangular_solve(L, tf.transpose(psi1), lower=True) / sigma
+        tmp = tf.matrix_triangular_solve(L, psi2, lower=True)
+        AAT = tf.matrix_triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
+        B = AAT + tf.eye(num_inducing, dtype=float_type)
+        LB = tf.cholesky(B)
+        c = tf.matrix_triangular_solve(LB, tf.matmul(A, self.Y), lower=True) / sigma
+
+        tmp1 = tf.matrix_triangular_solve(L, Kus, lower=True)
+        tmp2 = tf.matrix_triangular_solve(LB, tf.transpose(tmp1), lower=True)
+        mean = tf.matmul(tf.transpose(tmp2), c)
+
+        if full_conv:
+            var = self.kern.K(Xnew) \
+                  + tf.matmul(tf.transpose(tmp1), tmp1) \
+                  - tf.matmul(tf.transpose(tmp2), tmp2)
+            shape = tf.stack([1, 1, tf.shape(self.Y)[1]])
+            tf.tile(tf.expand_dims(var, 2), shape)
+        else:
+            var = self.kern.diag(Xnew) \
+                  + tf.reduce_sum(tf.square(tmp1) ,0) \
+                  - tf.reduce_sum(tf.square(tmp2) ,0)
+            shape = tf.stack([1, tf.shape(self.Y)[1]])
+            tf.tile(tf.expand_dims(var, 1), shape)
+
+        return mean + self.mean_function(Xnew), var
+
+
+
+
+
 
