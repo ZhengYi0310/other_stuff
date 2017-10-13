@@ -4,6 +4,7 @@ from gpflow.model import GPModel
 from gpflow.gpr import GPR
 from gpflow.param import Param
 from gpflow import  kullback_leiblers
+from gpflow.tf_wraps import eye
 from gpflow.mean_functions import Zero
 from gpflow import likelihoods
 from gpflow import transforms
@@ -60,7 +61,7 @@ class BayesianGPLVM(GPModel):
         """
         Initialise Bayesian GPLVM object. This method only works with a Gaussian likelihood.
         :param X_variational_mean: initial latent variational distribution mean, size N (number of points) x Q (latent dimensions)
-        :param X_variational_std: initial latent variational distribution std (N x Q or N x N x Q)
+        :param X_variational_std: initial latent variational distribution std (N x Q or N x Q x Q)
         :param Y: data matrix, size N (number of points) x D (dimensions)
         :param Kern: kernal specification, by default RBF-ARD
         :param M: number of inducing points 
@@ -86,7 +87,7 @@ class BayesianGPLVM(GPModel):
         if X_variational_std.ndim == 2:
             assert (X_variational_mean.shape == X_variational_std.shape)
         elif X_variational_std.ndim == 3:
-            assert X_variational_mean.shape[0] == X_variational_std.shape[0] == X_variational_std[1]
+            assert X_variational_mean.shape[1] == X_variational_std.shape[1] == X_variational_std[2]
         assert X_variational_mean.shape[0] == Y.shape[0], 'X variational mean and Y must be the same size.'
         assert X_variational_std.shape[0] == Y.shape[0], 'X variational std and Y must be the same size.'
 
@@ -116,7 +117,7 @@ class BayesianGPLVM(GPModel):
     @property
     def _X_variational_conv(self):
         if self.X_variational_std.get_shape().ndims == 3:
-            return tf.matmul(tf.transpose(self.X_std, perm=[2, 0, 1]), tf.transpose(self.X_std, perm=[2, 1, 0]))
+            return tf.matmul(self.X_variational_std, tf.transpose(self.X_variational_std, perm=[0, 2, 1]))
         elif self.X_variational_std.get_shape().ndims == 2:
             return tf.square(self.X_variational_std)
 
@@ -128,4 +129,31 @@ class BayesianGPLVM(GPModel):
         """
         num_inducing = tf.shape(self.Z)[0]
         # Compute the psi statistics.
-        psi0 = tf.reduce_sum(self.kern.eKdiag(tf.transpose(self.X_variational_mean), tf.transpose(self._X_variational_var)), 0)
+        psi0 = tf.reduce_sum(self.kern.eKdiag(self.X_variational_mean, self._X_variational_conv), 0)
+        psi1 = self.kern.eKxz(self.Z, self.X_variational_mean, self._X_variational_conv)
+        psi2 = tf.reduce_sum(self.kern.eKzxKxz(self.Z, self.X_variational_mean, self._X_variational_conv), 0)
+        Kuu = self.kern.K(self.Z) + tf.eye(num_inducing, dtype=float_type) * 1e-6
+        L = tf.cholesky(Kuu)
+        sigma2 = self.likelihood.variance
+        sigma = tf.sqrt(sigma2)
+
+        # Pre-computation
+        A = tf.matrix_triangular_solve(L, tf.transpose(psi1), lower=True) / sigma
+        tmp = tf.matrix_triangular_solve(L, psi2, lower=True)
+        AAT = tf.matrix_triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2 # Trace tricks.
+        B = AAT + tf.eye(num_inducing, dtype=float_type)
+        LB = tf.cholesky(B)
+        log_det_B = 2. * tf.reduce_sum(tf.log(tf.matrix_diag_part(LB)))
+        c = tf.matrix_triangular_solve(LB, tf.matmul(A, self.Y), lower=True)
+
+
+
+        # compute the marginal log likelihood
+        D = tf.cast(tf.shape(self.Y)[1], float_type)
+        ND = tf.cast(tf.size(self.Y), float_type)
+        bound = -0.5 * ND * tf.log(2 * np.pi * sigma2)
+        bound += -0.5 * tf.reduce_sum(tf.square(self.Y)) / sigma2
+        bound += -0.5 * D * log_det_B
+        bound += tf.reduce_sum(tf.square(c))
+        bound += -0.5 * D * psi0 / sigma2
+        bound += 0.5 * D * tf.reduce_sum(tf.matrix_diag_part(AAT))

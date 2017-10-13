@@ -34,26 +34,27 @@ mat_r = tf.diag([1.0, 2.0, 3.0])
 mat_r = tf.cast(mat_r, tf.float64)
 mat_l = tf.convert_to_tensor(np.array([[1.0, 2.0, 3.0],[2.0, 8.0, 8.0], [3.0, 8.0, 35.0]]))
 L = tf.cholesky(mat_l)
+print(sess.run(L))
 tmp = tf.matrix_triangular_solve(L, mat_r, lower=True)
-# print(sess.run(tmp))
-# print(sess.run(tf.matmul(tf.matrix_inverse(L), mat_r)))
+print(sess.run(tmp))
+print(sess.run(tf.matmul(tf.matrix_inverse(L), mat_r)))
 result1 = tf.matrix_triangular_solve(L, tf.transpose(tmp), lower=True)
-# print(sess.run(result1))
+print(sess.run(tf.size(result1)))
 result2 = tf.matrix_triangular_solve(tf.transpose(L), tmp, lower=False)
-# print(sess.run(result2))
+print(sess.run(tf.size(result2)))
 result3 = tf.matmul(tf.matrix_inverse(mat_l), mat_r)
 result4 = tf.matmul(tf.matrix_inverse(tf.transpose(L)), tf.matmul(tf.matrix_inverse(L), mat_r))
 # print(sess.run(result3))
 # print(sess.run(result4))
 sess.close()
 
-print (mat_l.get_shape().ndims)
-a = np.array([[1.0, 2.0, 3.0],[2.0, 8.0, 8.0], [3.0, 8.0, 35.0]])
-b = np.array([[1, 2, 3]])
-#assert (a.shape == b.shape), 'asdsad {}'.format(2)
-print np.cov(a.T)
-evecs, evals = np.linalg.eigh(np.cov(a.T))
-print evals
-i = np.argsort(evecs)[::-1]
-W = evals[:, i]
-print W
+# print (mat_l.get_shape().ndims)
+# a = np.array([[1.0, 2.0, 3.0],[2.0, 8.0, 8.0], [3.0, 8.0, 35.0]])
+# b = np.array([[1, 2, 3]])
+# #assert (a.shape == b.shape), 'asdsad {}'.format(2)
+# print np.cov(a.T)
+# evecs, evals = np.linalg.eigh(np.cov(a.T))
+# print evals
+# i = np.argsort(evecs)[::-1]
+# W = evals[:, i]
+# print W
