@@ -8,6 +8,8 @@ from gpflow import likelihoods
 from gpflow import transforms
 from gpflow import kernels
 from gpflow._settings import settings
+from scipy.optimize import minimize
+from scipy.spatial.distance import cdist
 
 float_type = settings.dtypes.float_type
 int_type = settings.dtypes.int_type
@@ -257,11 +259,11 @@ class BayesianGPLVM(GPModel):
         """
         #TODO: partially observed points
         X_mean = tf.concat([self.X_variational_mean, mu], 0)
-        X_var = tf.concat([self.X_variational_std, std], 0)
+        X_std = tf.concat([self.X_variational_std, std], 0)
         Y = tf.concat([self.Y, Ynew], 0)
 
         # Build the likelihood graph for the suggested q(X,X*) and the observed dimensions of Y and Y*
-        objective = self._build_likelihood_graph(X_mean, X_var, Y)
+        objective = self._build_likelihood_graph(X_mean, X_std, Y)
 
         # Collect gradients
         gradients = tf.gradients(objective, [mu, std])
@@ -291,8 +293,45 @@ class BayesianGPLVM(GPModel):
             return f, np.hstack(map(lambda gradients: gradients.flatten(), g))
         return fun
 
+    def infer_latent_inputs(self, Ynew, method='L-BFGS-B', tol=None, return_logprobs=False, observed=None, **kwargs):
+        """
+        Compute the latent representation of the new observed inputs via maximization of the mximization of the 
+        concactnated marginal likelihood.
+        :param Ynew: new observed points, size Nnew(number of new points) x k (observed dimensions), with k <= D 
+                     when k < D, it means the new points are partially observed.
+        :param method: a string specifying the optimization rountine used by scipy.
+        :param tol: the tolerance to be passed to the optimization module.
+        :param return_logprobs: return the likelihood probability after optimization (default: False)
+        :param observed: list specified with dimension k, if None then all dimensions D are observed.
+        :param kwargs: list of options passed to the scipy optimization module.
+        :returns (mean, var) or (mean, var, prob) in case return_logprobs is true.
+        :rtype mean, var: np.ndarray, size Nnew (number of new points ) x Q (latent dim)
+        """
 
+        observed = np.arange(0, Ynew.shape[1]) if observed is None else np.atleast_1d(observed)
+        assert(Ynew.shape[1] == observed.size)
+        infer_number = Ynew.shape[0]
 
+        # initialization of the new x based on the distance between training set Y and Ynew
+        nearest_xid = np.argmin(cdist(self.Y.value[:, observed], Ynew), axis=0)
+        x_init = np.hstack((self.X_variational_mean[nearest_xid, :].flatten(),
+                            self.X_variational_std[nearest_xid, :].flatten()))
 
+        f = self._held_out_data_wrapper(Ynew, observed)
 
+        # Optimize - restrict var to be positive
+        result = minimize(fun=f,
+                          x0=x_init,
+                          jac=True,
+                          method=method,
+                          tol=tol,
+                          bounds=[(None, None)] * int(x_init.size / 2) + [(0, None)] * int(x_init.size / 2),
+                          options=kwargs)
 
+        x_hat = result.x
+        mu = x_hat[:infer_number * self.num_latent].reshape((infer_number, self.num_latent))
+        var = x_hat[infer_number * self.num_latent:].reshape((infer_number, self.num_latent))
+        if return_logprobs:
+            return mu, var, -result.fun
+        else:
+            return mu, var
