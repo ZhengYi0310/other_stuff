@@ -10,6 +10,8 @@ from gpflow import kernels
 from gpflow._settings import settings
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
+from gpflow import kullback_leiblers
+
 
 float_type = settings.dtypes.float_type
 int_type = settings.dtypes.int_type
@@ -23,12 +25,19 @@ def PCA_initialization(X, Q):
     :param Q: Number of latent dimensions, Q < D
     :return: PCA projection array of size N x Q
     """
-    assert  Q <= X.shape[1], 'Cannot have more latent dimensions than observed dimensions'
-    evals, evecs = np.linalg.eigh(np.conv(X.T))
-    i = np.argsort(evals)[::-1]
-    W = evecs[:, i]
+    # assert  Q <= X.shape[1], 'Cannot have more latent dimensions than observed dimensions'
+    # evals, evecs = np.linalg.eigh(np.cov(X.T))
+    # i = np.argsort(evals)[::-1]
+    # W = evecs[:, i]
+    # W = W[:, :Q]
+    # return (X - X.mean(0)).dot(W)
+    assert Q <= X.shape[1], 'Cannot have more latent dimensions than observed'
+    evecs, evals = np.linalg.eigh(np.cov(X.T))
+    i = np.argsort(evecs)[::-1]
+    W = evals[:, i]
     W = W[:, :Q]
     return (X - X.mean(0)).dot(W)
+
 
 class GPLVM(GPR):
     """
@@ -58,11 +67,11 @@ class GPLVM(GPR):
 
 
 class BayesianGPLVM(GPModel):
-    def __init__(self, X_variational_mean, X_variational_std, Y, Kern, M , Z=None, X_prior_mean=None, X_prior_var=None):
+    def __init__(self, X_variational_mean, X_variational_var, Y, Kern, M , Z=None, X_prior_mean=None, X_prior_var=None):
         """
         Initialise Bayesian GPLVM object. This method only works with a Gaussian likelihood.
         :param X_variational_mean: initial latent variational distribution mean, size N (number of points) x Q (latent dimensions)
-        :param X_variational_std: initial latent variational distribution std (N x Q or N x Q x Q)
+        :param X_variational_var: initial latent variational distribution std (N X Q)
         :param Y: data matrix, size N (number of points) x D (dimensions)
         :param Kern: kernal specification, by default RBF-ARD
         :param M: number of inducing points 
@@ -75,22 +84,14 @@ class BayesianGPLVM(GPModel):
         del self.X # in GPLVM this is a Param
         self.X_variational_mean = Param(X_variational_mean)
 
-        if X_variational_std.ndim == 2:
-            self.X_variational_std = Param(X_variational_std, transforms.positive)
-        elif X_variational_std.ndim == 3: # full covariance matrix.
-            self.X_variational_std = Param(X_variational_std)
-        else:
-            raise AssertionError("Incorrect number of dimensions for X_std.")
-
+        assert X_variational_var.ndim == 2, 'Incorrect number of dimensions for X_std.'
+        self.X_variational_var = Param(X_variational_var, transforms.positive)
         self.num_data = X_variational_mean.shape[0]
         self.output_dim = Y.shape[1]
 
-        if X_variational_std.ndim == 2:
-            assert (X_variational_mean.shape == X_variational_std.shape)
-        elif X_variational_std.ndim == 3:
-            assert X_variational_mean.shape[1] == X_variational_std.shape[1] == X_variational_std[2]
+        assert np.all((X_variational_mean.shape == X_variational_var.shape))
         assert X_variational_mean.shape[0] == Y.shape[0], 'X variational mean and Y must be the same size.'
-        assert X_variational_std.shape[0] == Y.shape[0], 'X variational std and Y must be the same size.'
+        assert X_variational_var.shape[0] == Y.shape[0], 'X variational std and Y must be the same size.'
 
         # inducing points
         if Z is None:
@@ -115,13 +116,6 @@ class BayesianGPLVM(GPModel):
         assert X_prior_mean.shape[0] == self.num_data
         assert X_prior_mean.shape[1] == self.num_latent
 
-    @property
-    def _X_variational_conv(self):
-        if tf.shape(self.X_variational_std).ndims == 3:
-            return tf.matmul(self.X_variational_std, tf.transpose(self.X_variational_std, perm=[0, 2, 1]))
-        elif tf.shape(self.X_variational_std).ndims == 2:
-            return tf.square(self.X_variational_std)
-
     def build_likelihood(self):
         """
                 Construct a tensorflow function to compute the bound on the marginal
@@ -129,9 +123,9 @@ class BayesianGPLVM(GPModel):
                 """
 
         # Default: construct likelihood graph using the training data Y and initialized q(X)
-        return self._build_likelihood_graph(self.X_variational_mean, self._X_variational_conv, self.Y, self.X_prior_mean, self.X_prior_var)
+        return self._build_likelihood_graph(self.X_variational_mean, self.X_variational_var, self.Y, self.X_prior_mean, self.X_prior_var)
 
-    def _build_likelihood_graph(self, X_variational_mean, X_variational_conv, Y, X_prior_mean=None, X_prior_var=None):
+    def _build_likelihood_graph(self, X_variational_mean, X_variational_var, Y, X_prior_mean=None, X_prior_var=None):
         """
             Construct a tensorflow function to compute the bound on the marginal
             likelihood given a Gaussian multivariate distribution representing
@@ -146,9 +140,9 @@ class BayesianGPLVM(GPModel):
             X_prior_var = tf.ones((tf.shape(Y)[0], self.num_latent), float_type)
         num_inducing = tf.shape(self.Z)[0]
         # Compute the psi statistics.
-        psi0 = tf.reduce_sum(self.kern.eKdiag(X_variational_mean, X_variational_conv), 0)
-        psi1 = self.kern.eKxz(self.Z, X_variational_mean, X_variational_conv)
-        psi2 = tf.reduce_sum(self.kern.eKzxKxz(self.Z, X_variational_mean, X_variational_conv), 0)
+        psi0 = tf.reduce_sum(self.kern.eKdiag(X_variational_mean, X_variational_var), 0)
+        psi1 = self.kern.eKxz(self.Z, X_variational_mean, X_variational_var)
+        psi2 = tf.reduce_sum(self.kern.eKzxKxz(self.Z, X_variational_mean, X_variational_var), 0)
         Kuu = self.kern.K(self.Z) + tf.eye(num_inducing, dtype=float_type) * 1e-6
         L = tf.cholesky(Kuu)
         sigma2 = self.likelihood.variance
@@ -161,7 +155,7 @@ class BayesianGPLVM(GPModel):
         B = AAT + tf.eye(num_inducing, dtype=float_type)
         LB = tf.cholesky(B)
         log_det_B = 2. * tf.reduce_sum(tf.log(tf.matrix_diag_part(LB)))
-        c = tf.matrix_triangular_solve(LB, tf.matmul(A, Y), lower=True)
+        c = tf.matrix_triangular_solve(LB, tf.matmul(A, Y), lower=True) / sigma
 
         # compute the marginal log likelihood
         D = tf.cast(tf.shape(Y)[1], float_type)
@@ -169,33 +163,18 @@ class BayesianGPLVM(GPModel):
         bound = -0.5 * ND * tf.log(2 * np.pi * sigma2)
         bound += -0.5 * tf.reduce_sum(tf.square(Y)) / sigma2
         bound += -0.5 * D * log_det_B
-        bound += tf.reduce_sum(tf.square(c))
+        bound += 0.5 * tf.reduce_sum(tf.square(c))
         bound += -0.5 * D * tf.reduce_sum(psi0) / sigma2
         bound += 0.5 * D * tf.reduce_sum(tf.matrix_diag_part(AAT))
 
-
         # compute the KL[q(x) || p(x)] TODO: the dynamics case
-        KL = tf.convert_to_tensor(0, dtype=float_type)
-        if tf.shape(X_variational_conv).ndims == 2:
-            # fully factorised.
-            dX_variational_conv = X_variational_conv
-            NQ = tf.cast(tf.size(X_variational_mean), float_type)
-            KL = -0.5 * NQ + \
-                 0.5 * tf.reduce_sum(tf.log(X_prior_var)) - \
-                 0.5 * tf.reduce_sum(dX_variational_conv) + \
-                 0.5 * tf.reduce_sum((tf.square(X_variational_mean - X_prior_mean) + dX_variational_conv) / X_prior_var)
-
-        if tf.shape(X_variational_conv).ndims == 3:
-            # prior fully factorised, variational distribution factorised along data points
-            dX_prior_var = tf.eye(self.num_latent)
-            NQ = tf.cast(tf.size(X_variational_mean), float_type)
-            L_variational = tf.cholesky(X_variational_conv)
-            tmp = tf.cholesky(tf.matrix_triangular_solve(L_variational, tf.matrix_triangular_solve(tf.transpose(L_variational, perm=[0, 2, 1]), dX_prior_var, lower=True), lower=True))
-            log_det_tmp = 2. * tf.reduce_sum(tf.log(tf.matrix_diag_part(tmp)))
-            KL = -0.5 * NQ \
-                 + 0.5 * log_det_tmp \
-                 + tf.reduce_sum(X_variational_conv) \
-                 + 0.5 * tf.reduce_sum(tf.square(X_variational_mean - X_prior_mean))
+        # fully factorised.
+        dX_variational_conv = X_variational_var if len(X_variational_var.get_shape()) == 2 else tf.matrix_diag_part(X_variational_var)
+        NQ = tf.cast(tf.size(X_variational_mean), float_type)
+        KL = -0.5 * NQ + \
+        0.5 * tf.reduce_sum(tf.log(X_prior_var)) - \
+        0.5 * tf.reduce_sum(tf.log(dX_variational_conv)) + \
+        0.5 * tf.reduce_sum((tf.square(X_variational_mean - X_prior_mean) + dX_variational_conv) / X_prior_var)
 
         bound -= KL
         return bound
@@ -209,8 +188,8 @@ class BayesianGPLVM(GPModel):
         """
         num_inducing = tf.shape(self.Z)[0]
         # Compute the psi statistics.
-        psi1 = self.kern.eKxz(self.Z, self.X_variational_mean, self._X_variational_conv)
-        psi2 = tf.reduce_sum(self.kern.eKzxKxz(self.Z, self.X_variational_mean, self._X_variational_conv), 0)
+        psi1 = self.kern.eKxz(self.Z, self.X_variational_mean, self.X_variational_var)
+        psi2 = tf.reduce_sum(self.kern.eKzxKxz(self.Z, self.X_variational_mean, self.X_variational_var), 0)
         Kuu = self.kern.K(self.Z) + tf.eye(num_inducing, dtype=float_type) * 1e-6
         Kus = self.kern.K(self.Z, Xnew)
         L = tf.cholesky(Kuu)
@@ -259,11 +238,11 @@ class BayesianGPLVM(GPModel):
         """
         #TODO: partially observed points
         X_mean = tf.concat([self.X_variational_mean, mu], 0)
-        X_std = tf.concat([self.X_variational_std, std], 0)
+        X_var = tf.concat([self.X_variational_var, std], 0)
         Y = tf.concat([self.Y, Ynew], 0)
 
         # Build the likelihood graph for the suggested q(X,X*) and the observed dimensions of Y and Y*
-        objective = self._build_likelihood_graph(X_mean, X_std, Y)
+        objective = self._build_likelihood_graph(X_mean, X_var, Y)
 
         # Collect gradients
         gradients = tf.gradients(objective, [mu, std])
@@ -285,10 +264,10 @@ class BayesianGPLVM(GPModel):
         def fun(x_flat):
             # Unpack q(X*) candidate
             mu_new = x_flat[:half_num_params].reshape((Ynew.shape[0], self.num_latent))
-            std_new = x_flat[half_num_params].reshape((Ynew.shape[0], self.num_latent))
+            var_new = x_flat[half_num_params].reshape((Ynew.shape[0], self.num_latent))
 
             # Likelihood computation, gradients flattening
-            f, g = self.held_out_data_objective(Ynew, mu_new, std_new, observed)
+            f, g = self.held_out_data_objective(Ynew, mu_new, var_new, observed)
 
             return f, np.hstack(map(lambda gradients: gradients.flatten(), g))
         return fun

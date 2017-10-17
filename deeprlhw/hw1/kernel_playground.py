@@ -30,13 +30,14 @@ import tensorflow.contrib as contrib
 # axes[0,0].set_ylim(-3, 3)
 # plt.show()
 sess = tf.InteractiveSession()
-mat_r = tf.convert_to_tensor(np.array([[1.0, 2.0, 3.0]]))
+mat_r = tf.convert_to_tensor(np.array([1.0, 2.0, 3.0]))
 mat_r = tf.cast(mat_r, tf.float64)
 mat_l = tf.convert_to_tensor(np.array([[1.0, 0.0, 0.0],[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]))
 # np.hstack(map(lambda gradients: gradients.flatten(), mat_l))
 L = tf.cholesky(mat_l)
 shape = tf.stack([1, 1, tf.shape(mat_l)[1]])
 print(sess.run(shape))
+print(mat_r.get_shape().ndims)
 # print(sess.run((mat_l / mat_r)))
 # tmp = tf.matrix_triangular_solve(L, mat_r, lower=True)
 # print(sess.run(tmp))
@@ -74,3 +75,7 @@ p = tf.gather_nd(tf.transpose(params), indices)
 print(sess.run(p))
 
 print type(np.arange(1,5))
+
+import pods
+dataset = pods.datasets.oil_100()
+print dataset['X'].shape
