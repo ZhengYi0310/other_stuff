@@ -10,7 +10,7 @@ from gpflow import kernels
 from gpflow._settings import settings
 from scipy.optimize import minimize
 from scipy.spatial.distance import cdist
-from gpflow import kullback_leiblers
+
 
 
 float_type = settings.dtypes.float_type
