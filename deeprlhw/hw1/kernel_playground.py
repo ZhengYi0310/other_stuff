@@ -40,6 +40,7 @@ print(sess.run(tf.stack([2 ,2, 1])))
 mat_1 = tf.convert_to_tensor(np.array([[1.0, 0.3, 0.0],[5.0, 1.0, 0.0], [0.0, 2.5, 1.0]]))
 mat_2 = tf.convert_to_tensor(np.array([[1.0, 8, 0.0],[3.0, 1.0, 0.2], [-4, 3.0, 1.0]]))
 mat_3 = tf.convert_to_tensor(np.array([[1.0, 2.4, 0.0],[3.0, 0.5, 0.2], [-2, 3.0, 1.0]]))
+print(len(mat_l))
 print(sess.run(tf.matmul(tf.matmul(tf.transpose(mat_1), mat_2), mat_3)))
 print(sess.run(tf.einsum('jk,kl->jl', tf.einsum('ij,il->jl', mat_1, mat_2), mat_3))) # Lx^T x Lambda x Lx in batch mode
 # np.hstack(map(lambda gradients: gradients.flatten(), mat_l))

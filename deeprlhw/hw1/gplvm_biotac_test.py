@@ -24,20 +24,20 @@ my_data1 = (my_data1 - np.min(my_data1, axis=0)) / (np.max(my_data1 ,axis=0) - n
 my_data2 = (my_data2 - np.min(my_data2, axis=0))/ (np.max(my_data2 ,axis=0) - np.min(my_data2, axis=0))
 my_data3 = (my_data3 - np.min(my_data3, axis=0))/ (np.max(my_data3 ,axis=0) - np.min(my_data2, axis=0))
 elec_data = np.vstack((my_data1, my_data2, my_data3))
-labels = np.vstack((np.zeros((my_data1.shape[0], 1), dtype=int), np.ones((my_data2.shape[0], 1), dtype=int), np.ones((my_data2.shape[0], 1), dtype=int) * 2))
-labels = labels.reshape(-1)
+# labels = np.vstack((np.zeros((my_data1.shape[0], 1), dtype=int), np.ones((my_data2.shape[0], 1), dtype=int), np.ones((my_data2.shape[0], 1), dtype=int) * 2))
+# labels = labels.reshape(-1)
 
 
 data = pods.datasets.oil_100()
 Y = data['X']
 
-# labels = np.argmax(data['Y'], axis=1)
+labels = np.argmax(data['Y'], axis=1)
 colors = cm.rainbow(np.linspace(0, 1, len(np.unique(labels))))
 print(labels)
 Q = 10
-N = elec_data.shape[0]
+N = Y.shape[0]
 M = 30  # number of inducing pts
-X_mean = gplvm.PCA_initialization(elec_data, Q) # Initialise via PCA
+X_mean = gplvm.PCA_initialization(Y, Q) # Initialise via PCA
 Z = np.random.permutation(X_mean.copy())[:M]
 
 
@@ -49,7 +49,7 @@ if(fHmmm):
 else:
     k = ekernels.RBF(Q, ARD=True)
 
-m = gplvm.BayesianGPLVM(X_variational_mean=X_mean, X_variational_var=0.1*np.ones((N, Q)), Y=elec_data,
+m = gplvm.BayesianGPLVM(X_variational_mean=X_mean, X_variational_var=0.1*np.ones((N, Q)), Y=Y,
                                 Kern=k, M=M, Z=Z)
 m.likelihood.variance = 0.01
 m.optimize(disp=True, maxiter=500)
@@ -62,7 +62,7 @@ fig, ax = plt.subplots()
 ax.bar(np.arange(len(kern.lengthscales.value)) , sens, 0.1, color='y')
 ax.set_title('Sensitivity to latent inputs')
 
-XPCAplot = gpflow.gplvm.PCA_reduce(elec_data, Q)
+XPCAplot = gpflow.gplvm.PCA_reduce(Y, Q)
 fig = plt.figure(figsize=(10, 6))
 
 
