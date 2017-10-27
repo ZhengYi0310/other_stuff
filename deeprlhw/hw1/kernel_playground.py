@@ -29,7 +29,11 @@ import tensorflow.contrib as contrib
 # plotkernelsample(gpflow.kernels.PeriodicKernel(1), axes[1,3])
 # axes[0,0].set_ylim(-3, 3)
 # plt.show()
+t1 = [[1, 2, 3], [4, 5, 6]]
+t2 = [[7, 8, 9], [10, 11, 12]]
+
 sess = tf.InteractiveSession()
+print(sess.run(tf.concat(0, [t1, t2])))
 mat_r = tf.convert_to_tensor(np.array([1.0, 2.0, 3.0]))
 mat_r = tf.cast(mat_r, tf.float64)
 mat_l = tf.convert_to_tensor(np.array([[1.0, 0.02, 0.3],[2, 1.0, 3.0], [0.04, 0.0, 1.0]]))
@@ -40,7 +44,6 @@ print(sess.run(tf.stack([2 ,2, 1])))
 mat_1 = tf.convert_to_tensor(np.array([[1.0, 0.3, 0.0],[5.0, 1.0, 0.0], [0.0, 2.5, 1.0]]))
 mat_2 = tf.convert_to_tensor(np.array([[1.0, 8, 0.0],[3.0, 1.0, 0.2], [-4, 3.0, 1.0]]))
 mat_3 = tf.convert_to_tensor(np.array([[1.0, 2.4, 0.0],[3.0, 0.5, 0.2], [-2, 3.0, 1.0]]))
-print(len(mat_l))
 print(sess.run(tf.matmul(tf.matmul(tf.transpose(mat_1), mat_2), mat_3)))
 print(sess.run(tf.einsum('jk,kl->jl', tf.einsum('ij,il->jl', mat_1, mat_2), mat_3))) # Lx^T x Lambda x Lx in batch mode
 # np.hstack(map(lambda gradients: gradients.flatten(), mat_l))

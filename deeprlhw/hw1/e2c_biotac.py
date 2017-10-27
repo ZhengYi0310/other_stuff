@@ -26,10 +26,11 @@ flags.DEFINE_string('log_dir' , '/home/bml/yi_zheng/log', 'Directory for log fil
 flags.DEFINE_integer('latent_dim', 5, 'Dimensionality for the latent state.')
 flags.DEFINE_integer('input_dim', 12 * 19, 'Dimensionality for the input')
 flags.DEFINE_integer('control_dim', 7, 'Dimensionality for the control signal')
-flags.DEFINE_integer('batch_size', 100, 'Minibatch size.')
-flags.DEFINE_integer('n_samples', 20, 'Number of samples per-data point of X.')
+flags.DEFINE_integer('minibatch_size', 100, 'Minibatch size.')
+flags.DEFINE_integer('n_samples', 200, 'Number of samples per-data point of X.')
 flags.DEFINE_integer('print_every', 1000, 'Print every n iterations.')
-flags.DEFINE_integer('n_iterations', '1000000', 'number of iterations')
+flags.DEFINE_integer('n_iterations', 1000000, 'number of iterations')
+flags.DEFINE_integer('hidden_layers_num', 2, 'number of hidden layers')
 FLAGS = flags.FLAGS
 
 sg = tf.contrib.bayesflow.stochastic_tensor
@@ -103,7 +104,7 @@ def InfoLost(Q_phi):
     :return: the KL divergence between the variation distribution give the input and the standard normal prior, shape 1 by batch
     '''
     prior_z = distributions.MultivariateNormalDiag(np.zeros(FLAGS.latent_dim, dtype=np.float32),
-                                                   np.ones(FLAGS.latent_dim, dtype=np.float32))
+                                                   np.eye(FLAGS.latent_dim, dtype=np.float32))
     return distributions.kl(Q_phi, prior_z)
 
 # Build the networks
@@ -139,7 +140,7 @@ for i in range(0, FLAGS.batch_size):
 with tf.variable_scope("loss"):
     info_loss = InfoLost(distributions.MultivariateNormalDiag(mu, sigma))
     recon_loss = tf.reshape(recon_loss, [-1, FLAGS.batch_size])
-    total_loss = tf.reduce_sum(info_loss + recon_loss)
+    total_loss = tf.reduce_sum(info_loss - recon_loss)
 print recon_loss
 print info_loss
 print total_loss
@@ -163,17 +164,60 @@ tf.summary.scalar("info_loss", tf.reduce_mean(info_loss))
 tf.summary.merge_all()
 
 
-mvn = distributions.MultivariateNormalDiag([[1., 2, 3], [11, 22, 33]] ,
-                                [[1., 2, 3],[0.001, 0.001, 0.001]])  # shape: [2, 3]
-sess = tf.InteractiveSession()
-sample = mvn.sample(3, seed=0)
-a = sample.eval()
-print(a)
-b = tf.split(a, num_or_size_splits=2, axis=1)
-print(b[0].eval())
-split0, split1 = tf.split(a, num_or_size_splits=2, axis=1)
-split0 = tf.squeeze(split0, axis=1)
-print(split0.eval())
+# mvn = distributions.MultivariateNormalDiag([[1., 2, 3], [11, 22, 33]] ,
+#                                 [[1., 2, 3],[0.001, 0.001, 0.001]])  # shape: [2, 3]
+# sess = tf.InteractiveSession()
+# sample = mvn.sample(3, seed=0)
+# a = sample.eval()
+# print(a)
+# b = tf.split(a, num_or_size_splits=2, axis=1)
+# print(b[0].eval())
+# split0, split1 = tf.split(a, num_or_size_splits=2, axis=1)
+# split0 = tf.squeeze(split0, axis=1)
+# print(split0.eval())
+
+
+# TRAIN
+if __name__=="__main__":
+  init=tf.initialize_all_variables()
+  sess=tf.InteractiveSession()
+  sess.run(init)
+  # WRITER
+  writer = tf.train.SummaryWriter("/ltmp/e2c", sess.graph_def)
+
+  dataset=PlaneData("data/plane1.npz","data/env1.png")
+  dataset.initialize()
+
+  # tmp
+  # (x_val,u_val,x_next_val)=dataset.sample(batch_size, replace=False)
+  # feed_dict={
+  #   x:x_val,
+  #   u:u_val,
+  #   x_next:x_next_val
+  # }
+  # results=sess.run([L_x,L_x_next,L_z,L_bound,KL],feed_dict)
+  # pdb.set_trace()
+  # resume training
+  #saver.restore(sess, "/ltmp/e2c-plane-83000.ckpt")
+  train_iters=2e5 # 5K iters
+  for i in range(int(train_iters)):
+    (x_val,u_val,x_next_val)=dataset.sample(FLAGS.batch_size, replace=False)
+    feed_dict={
+      x:x_val,
+      u:u_val,
+      x_next:x_next_val
+    }
+    plt.hist(x_val[0,:])
+    plt.show()
+    results=sess.run([loss,all_summaries,train_op],feed_dict)
+    if i%1000==0:
+      print("iter=%d : Loss: %f" % (i,results[0]))
+      if i>2000:
+        writer.add_summary(results[1], i)
+    if (i%100==0 and i < 1000) or (i % 1000 == 0):
+      saver.save(sess,ckpt_file+"-%05d"%(i)+".ckpt")
+
+  sess.close()
 
 
 

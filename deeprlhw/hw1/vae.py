@@ -1,191 +1,111 @@
-import itertools
-import tensorflow as tf
-import tensorflow.contrib.slim as slim
 import numpy as np
-import os
-import time
-import seaborn as sns
-import matplotlib as mpl
+import tensorflow as tf
 import matplotlib.pyplot as plt
-from scipy.misc import imsave
-from tensorflow.examples.tutorials import mnist
+import os
+import ipdb as pdb
 
-sns.set_style("whitegrid")
-sg = tf.contrib.bayesflow.stochastic_graph
-st = tf.contrib.bayesflow.stochastic_tensor
-distributions = tf.contrib.distributions
+tf.set_random_seed(0)
 
-flags = tf.app.flags
-flags.DEFINE_string('data_dir', '/home/bml/yi_zheng/data', 'Directory for training data.')
-flags.DEFINE_string('log_dir' , '/home/bml/yi_zheng/log', 'Directory for log files.')
-flags.DEFINE_integer('latent_dim', 5, 'Dimensionality for the latent state.')
-flags.DEFINE_integer('batch_size', 100, 'Minibatch size.')
-flags.DEFINE_integer('n_samples', 1, 'Number of samples per-data point of X.')
-flags.DEFINE_integer('print_every', 1000, 'Print every n iterations.')
-flags.DEFINE_integer('n_iterations', '1000000', 'number of iterations')
+z_dim=3 # latent space dimensionality
+eps=1e-9 # numerical stability
 
-FLAGS = flags.FLAGS
+def orthogonal_initializer(scale = 1.1):
+    """
+    reference from Lasagne and Keras, Exact solutions to the nonlinear dynamics of learning in deep linear neural networks, 2013
+    """
+    def _initializer(shape, dtype=tf.float32):
+        flat_shape = (shape[0], np.prod(shape[1:]))
+        a = np.random.normal(0.0, 1.0, flat_shape)
+        u, _, v = np.linalg.svd(a, full_matrices=False)
+        # pick the one with the correct shape
+        q = u if u.shape == flat_shape else v
+        q = q.reshape(shape)
+        print('Warning -- You have opted to use the orthogonal_initializer function')
+        return tf.constant(scale * q[:shape[0], :shape[1]], dtype=tf.float32)
 
-def encoder_network(x, latent_dim):
-    '''
-    Construct an encoder network parametrizing a Gaussian.
-    
-    :param x: A batch of MNIST digits. 
-    :param latent_dim: The dimensions for the latent states.
-    :return: mu: Mean parameters for the Normal distribution variational family.
-             sigma: Standard deviation parameters for the Normal distribution variational family.
-    '''
-    with slim.arg_scope([slim.fully_connected], activation_fn=tf.nn.relu):
-        net = slim.flatten(x)
-        net = slim.fully_connected(net, 800)
-        net = slim.fully_connected(net, 512)
-        gaussian_params = slim.fully_connected(net, latent_dim * 2, activation_fn=None)
-        mu = gaussian_params[:, :latent_dim]
-        sigma = tf.exp(gaussian_params[:, latent_dim:])
-        return mu, sigma
+class NormalDistribution(object):
+    """
+    Represent a multivariate Gaussian distribution parameterized by (mu, Cov).
+    . If Cov matrix is diagonal, Cov = (sigma).^2. Otherwisr, Cov = A*(sigma).^2*A, where 
+    A = (I+v*r^T).
+    """
+    def __init__(self, mu, sigma, logsigma, v=None, r=None):
+        self.mu = mu
+        self.sigma = sigma
+        self.logsigma = logsigma
+        dim = mu.get_shape()
+        if v is None:
+            v = tf.constant(0., shape=dim)
+        if r is None:
+            r = tf.constant(0., shape=dim)
+        self.v = v
+        self.r = r
 
-def decoder_network(z, input_dim):
-    '''
-    For non-binary data, construct an encoder network parametrizing a Gaussian.
-    :param z: Samples of latent variables 
-    :return: mu: Mean parameters for the Normal distribution variational family.
-             sigma: Standard deviation parameters for the Normal distribution variational family.
-    '''
-    with slim.arg_scope([slim.fully_connected], activation_fn=tf.nn.relu):
-        net = slim.fully_connected(z, 512)
-        net = slim.fully_connected(net, 800)
-        gaussian_params = slim.fully_connected(net, input_dim * 2, activation_fn=None)
-        mu = gaussian_params[:, :input_dim]
-        sigma = tf.exp(gaussian_params[:, input_dim:])
-        return mu, sigma
+def linear(x, output_dim):
+    W = tf.get_variable("W", [x.get_shape()[1], output_dim], initializer=orthogonal_initializer(1.1))
+    b = tf.get_variable("b", [output_dim], initializer=tf.constant_initializer(0.0))
+    return tf.matmul(x, W) +b
 
-def train():
-    # Train a vairational Autoencoder on the Biotac data
-    with tf.name_scope('data'):
-        x = tf.placeholder(tf.float32, [None, 12, 19, 1])
-        tf.summary.tensor_summary('x', x)
+def Relu(x, output_dim, scope):
+    # helper function for implementing stacked ReLU layers
+    with tf.variable_scope(scope):
+        return tf.nn.relu(linear(x, output_dim))
 
-    with tf.variable_scope('variational'):
-        q_mu, q_sigma = encoder_network(x=x, latent_dim=FLAGS.latent_dim)
-        with st.value(st.SampleValue()):
-            # The variational distribution is a Normal with mean and standard
-            # deviation given by the encoder network
-            q_z = st.StochasticTensor(distributions.MultivariateNormalDiag(loc=q_mu, scale=tf.sqrt(q_sigma)))
+def encode(x, share=None):
+    with tf.variable_scope("encoder",reuse=share):
+        for l in range(2):
+            if (l==0):
+                x = Relu(x, 500, "l" + str(l))
+            if (l==1):
+                x = Relu(x, 128, "l" + str(l))
+        return linear(x, 2 * z_dim)
 
-    with tf.variable_scope('model'):
-        p_mu, p_sigma = decoder_network(z=q_z, input_dim = 12 * 19)
-        with st.value_type(st.SampleValue()):
-            # The likelihood distribution is a Normal with mean and standard
-            # deviation given by the decoder network
-            p_x_given_z_posterior = st.StochasticTensor(distributions.MultivariateNormalDiag(loc=p_mu, scale=tf.sqrt(p_sigma)))
-            tf.summary.tensor_summary('p_x_given_z_posterior',
-                             tf.cast(p_x_given_z_posterior, tf.float64))
-
-    # Take samples from the prior
-    with tf.variable_scope('model', reuse=True):
-        p_z = distributions.MultivariateNormalDiag(loc=np.zeros(FLAGS.latent_dim, dtype=np.float64),
-                                   scale=np.ones(FLAGS.latent_dim, dtype=np.float64))
-        p_z_sample = p_z.sample(FLAGS.n_samples)
-        p_mu, p_sigma = decoder_network(z=p_z_sample, input_dim=12 * 19)
-        with st.value_type(st.SampleValue()):
-            # The likelihood distribution is a Normal with mean and standard
-            # deviation given by the decoder network
-            p_x_given_z_prior = st.StochasticTensor(distributions.MultivariateNormalDiag(loc=p_mu, scale=tf.sqrt(p_sigma)))
-            tf.summary.tensor_summary('p_x_given_z_prior', tf.cast(p_x_given_z_prior, tf.float64))
-
-    # Take samples from the prior using a placeholder
-    with tf.variable_scope('mode', reuse=True):
-        z_input = tf.placeholder(tf.float64, [None, FLAGS.latent_dim])
-        p_mu, p_sigma = decoder_network(z=z_input, input_dim=12 * 19)
-        with st.value_type(st.SampleValue()):
-            # The likelihood distribution is a Normal with mean and standard
-            # deviation given by the decoder network
-            p_x_given_z_prior_inp = st.StochasticTensor(distributions.MultivariateNormalDiag(loc=p_mu, scale=tf.sqrt(p_sigma)))
-            tf.summary.tensor_summary('p_x_given_z_prior', tf.cast(p_x_given_z_prior_inp, tf.float64))
-
-    # Build the variational lower bound
-    kl = distributions.kl_divergence(q_z.distribution, p_z)
-    expected_log_likelihood = tf.reduce_sum(p_x_given_z_posterior.distribution.log_prob(x))
-    elbo = tf.reduce_sum(expected_log_likelihood - kl)
-    optimizer = tf.train.AdagradOptimizer(learning_rate=0.001)
-    train_op = optimizer.minimize(-elbo)
-
-    # Merge all the summaries
-    summary_op = tf.summary.merge_all()
-
-    init_op = tf.global_variables_initializer()
-
-    # Run training
-    sess = tf.interactiveSession()
-    sess.run(init_op)
-
-    mnist_set = mnist.input_data.read_data_sets("MNIST_data/", one_hot=True)
-    print('Saving TensorBoard summaries and images to :%s' %FLAGS.logdir)
-    train_writer = tf.summary.FileWriter(FLAGS.logdir, sess.graph)
-
-    # Get fixed MNIST digits for plotting posterior means during training
-    np_x_fixed, np_y = mnist_set.test.next_batch(5000)
-    np_x_fixed = np_x_fixed.reshape(5000, 28, 28, 1)
-    np_x_fixed = (np_x_fixed > 0.5).astype(np.float32)
-
-    for i in range(FLAGS.n_iterations):
-        np_x, _ = mnist_set.train.next_batch(FLAGS.batch_size)
-        np_x = np_x.reshape(FLAGS.batch_size, 28, 28, 1)
-        sess.run(train_op, {x: np_x})
-
-        # Print progress and save images every so often
-        t0 = time.time()
-        if ((i % FLAGS.print_every) == 0):
-            np_elbo, summary_str = sess.run([elbo, summary_op], {x: np_x})
-            train_writer.add_summary(summary_str, i)
-            print('Iteration: {0:d} ELBO: {1:.3f} Examples/s: {2:.3e}'.format(
-                    i,
-                    np_elbo / FLAGS.batch_size,
-                    FLAGS.batch_size * FLAGS.print_every / (time.time() - t0)))
-            t0 = time.time()
-
-            # Save samples
-            p_x_given_z_posterior_samples, p_x_given_z_prior_samples = sess.run([p_x_given_z_posterior, p_x_given_z_prior], {x: np_x})
-            for k in range(FLAGS.n_samples):
-                f_name = os.path.join(
-                    FLAGS.logdir, 'iter_%d_posterior_predictive_%d_data.jpg' % (i, k))
-                imsave(f_name, np_x[k, :, :, 0])
-                f_name = os.path.join(
-                    FLAGS.logdir, 'iter_%d_posterior_predictive_%d_sample.jpg' % (i, k))
-                imsave(f_name, p_x_given_z_posterior_samples[k, :, :, 0])
-                f_name = os.path.join(
-                    FLAGS.logdir, 'iter_%d_prior_predictive_%d.jpg' % (i, k))
-                imsave(f_name, p_x_given_z_prior_samples[k, :, :, 0])
-
-            # Plot the posterior predictive space
-            if FLAGS.latent_dim == 3:
-                np_q_mu = sess.run(q_mu, {x: np_x_fixed})
-
-
+def KLGaussian(Q, N):
+    """
+    Implementation of KL Divergence term KL(N0, N1) derived in Appendix A.1 from the embed to control paper.
+    :param Q: Normal(mu, A*sigma_0*A^T), 
+    :param N: Normal(mu, A*sigma_1*A^T), 
+    :return: scalar divergence, measured in nats (information units under log rather than log2), shape= batch x 1
+    """
+    sum = lambda x: tf.reduce_sum(x, 1) # convenience function for summing over features (cols)
+    k = float(Q.mu.get_shape()[1].value) # dimension of the distribution
+    mu0, v, r, mu1 = Q.mu, Q.v, Q.r, N.mu
+    sigma_0, sigma_1 = tf.square(Q.sigma), tf.square(N.sigma) + eps
+    a = sum(sigma_0 * (1. + 2. * v * r) /sigma_1) + sum(tf.square(r) * sigma_0) * sum(tf.square(v) / sigma_1) # trace term
+    b = sum(tf.square(mu1 - mu0) / sigma_1) # difference-of-means term
+    c = 2. * (sum(N.logsimgma - Q.logsigma) - tf.log(1. + sum(v * r))) # ratio-of-determinants term.
+    return 0.5 * (a + b - k + c)  # , a, b, c
 
 def sampleNormal(mu, sigma):
-    # note: sigma is diagonal standard deviation, not variance
-    n01 = tf.random_normal(mu.get_shape(), mean=0, stddev=1)
+    # diagonal stdev
+    n01 = tf.random_normal(sigma.get_shape(), mean=0, stddev=1)
     return mu + sigma * n01
 
-def sample_Q_phi(mu, sigma):
-    """
-      Samples Zt ~ normrnd(mu,sigma) via reparameterization trick for normal dist
-      mu is (batch,z_size)
-      
-      # note: sigma here is the diagonal vector of the covariance matrix 
-    """
-    with tf.variable_scope("sample_Q_phi"):
-        with tf.variable_scope("Q_phi"):
-            return sampleNormal(mu, tf.sqrt(sigma))
+def sampleQ_phi(h_enc, share=None):
+    with tf.variable_scope("sampleQ_phi", reuse=share):
+        mu, log_sigma = tf.split(1, 2, linear(h_enc, z_dim * 2))  # diagonal stdev values
+        sigma = tf.exp(log_sigma)
+        return sampleNormal(mu, sigma), NormalDistribution(mu, sigma, log_sigma)
 
-def sample_P_theta(mu, sigma):
-    """
-          Samples Xt ~ normrnd(mu,sigma) via reparameterization trick for normal dist
-          mu is (batch,z_size)
+def transition(z, u):
+    with tf.variable_scope("trans"):
+        with tf.variable_scope("linear_state"):
+            s1 = linear(z, z_dim)
+        with tf.variable_scope("linear_action"):
+            s2 = linear(u, z_dim)
+        return s1 + s2
 
-          # note: sigma here is the diagonal vector of the covariance matrix 
-        """
-    with tf.variable_scope("sample_P_theta"):
-        with tf.variable_scope("P_theta"):
-            return sampleNormal(mu, tf.sqrt(sigma))
+
+def sampleQ_psi(z,u):
+  A,B,o,v,r=transition(z)
+  with tf.variable_scope("sampleQ_psi"):
+    mu_t=tf.expand_dims(Q_phi.mu,-1) # batch,z_dim,1
+    Amu=tf.squeeze(tf.batch_matmul(A,mu_t), [-1])
+    u=tf.expand_dims(u,-1) # batch,u_dim,1
+    Bu=tf.squeeze(tf.batch_matmul(B,u),[-1])
+    Q_psi=NormalDistribution(Amu+Bu+o,Q_phi.sigma,Q_phi.logsigma, v, r)
+    # the actual z_next sample is generated by deterministically transforming z_t
+    z=tf.expand_dims(z,-1)
+    Az=tf.squeeze(tf.batch_matmul(A,z),[-1])
+    z_next=Az+Bu+o
+    return z_next,Q_psi#,(A,B,o,v,r) # debugging
