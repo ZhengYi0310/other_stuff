@@ -39,7 +39,7 @@ class VariationalAutoencoder(object):
     """
 
     def __init__(self, network_architecture, transfer_fct=tf.nn.softplus,
-                 learning_rate=0.001, batch_size=100):
+                 learning_rate=0.0001, batch_size=100):
         self.network_architecture = network_architecture
         self.transfer_fct = transfer_fct
         self.learning_rate = learning_rate
@@ -94,20 +94,20 @@ class VariationalAutoencoder(object):
                             n_input, n_z):
         all_weights = dict()
         all_weights['weights_recog'] = {
-            'h1': tf.get_variable("h1_recog", [n_input, n_hidden_recog_1], dtype=tf.float32),
-            'h2': tf.get_variable("h2_recog", [n_hidden_recog_1, n_hidden_recog_2], dtype=tf.float32),
-            'out_mean': tf.get_variable("out_mean_weights_recog", [n_hidden_recog_2, n_z], dtype=tf.float32),
-            'out_log_sigma': tf.get_variable("out_log_sigma_weights_recog", [n_hidden_recog_2, n_z], dtype=tf.float32)}
+            'h1': tf.get_variable("h1_recog", [n_input, n_hidden_recog_1], initializer=tf.orthogonal_initializer),
+            'h2': tf.get_variable("h2_recog", [n_hidden_recog_1, n_hidden_recog_2], initializer=tf.orthogonal_initializer),
+            'out_mean': tf.get_variable("out_mean_weights_recog", [n_hidden_recog_2, n_z], initializer=tf.orthogonal_initializer),
+            'out_log_sigma': tf.get_variable("out_log_sigma_weights_recog", [n_hidden_recog_2, n_z], initializer=tf.orthogonal_initializer)}
         all_weights['biases_recog'] = {
             'b1': tf.get_variable("b1_recog", [n_hidden_recog_1], initializer=tf.constant_initializer(0.0), dtype=tf.float32),
             'b2': tf.get_variable("b2_recog", [n_hidden_recog_2], initializer=tf.constant_initializer(0.0), dtype=tf.float32),
             'out_mean': tf.get_variable("out_mean_biases_recog", [n_z], initializer=tf.constant_initializer(0.0), dtype=tf.float32),
             'out_log_sigma': tf.get_variable("out_log_sigma_biases_recog", [n_z], initializer=tf.constant_initializer(0.0), dtype=tf.float32)}
         all_weights['weights_gener'] = {
-            'h1': tf.get_variable("h1_gener", [n_z, n_hidden_gener_1], dtype=tf.float32),
-            'h2': tf.get_variable("h2_gener", [n_hidden_gener_1, n_hidden_gener_2], dtype=tf.float32),
-            'out_mean': tf.get_variable("out_mean_weights_gener", [n_hidden_recog_2, n_input], dtype=tf.float32),
-            'out_log_sigma': tf.get_variable("out_log_sigma_weights_gener", [n_hidden_recog_2, n_input], dtype=tf.float32)}
+            'h1': tf.get_variable("h1_gener", [n_z, n_hidden_gener_1], initializer=tf.orthogonal_initializer),
+            'h2': tf.get_variable("h2_gener", [n_hidden_gener_1, n_hidden_gener_2], initializer=tf.orthogonal_initializer),
+            'out_mean': tf.get_variable("out_mean_weights_gener", [n_hidden_recog_2, n_input], initializer=tf.orthogonal_initializer),
+            'out_log_sigma': tf.get_variable("out_log_sigma_weights_gener", [n_hidden_recog_2, n_input], initializer=tf.orthogonal_initializer)}
         all_weights['biases_gener'] = {
             'b1': tf.get_variable("b1_gener", [n_hidden_gener_1], initializer=tf.constant_initializer(0.0), dtype=tf.float32),
             'b2': tf.get_variable("b2_gener", [n_hidden_gener_2], initializer=tf.constant_initializer(0.0), dtype=tf.float32),
@@ -222,7 +222,7 @@ def train(network_architecture, learning_rate=0.0001,
         # Loop over all batches
         for i in range(total_batch):
             pendulum_dataset_batch = pendulum_dataset.next_batch(batch_size)
-            batch_x = [np.reshape(before_img, (-1, 3200)) for ind, (before_img,control_signal, after_image, before_states, after_states) in enumerate(pendulum_dataset_batch)]
+            batch_x = [np.reshape(before_img, (-1, 4608)) for ind, (before_img,control_signal, after_image, before_states, after_states) in enumerate(pendulum_dataset_batch)]
             batch_x = np.squeeze(np.array(batch_x, np.float32), axis=1) / 255.
             # for i in range(len(batch_x)):
             #     batch_x[i][batch_x[i] != 1] = 0.
@@ -240,16 +240,16 @@ def train(network_architecture, learning_rate=0.0001,
     return vae
 
 network_architecture = \
-    dict(n_hidden_recog_1=800, # 1st layer encoder neurons
-         n_hidden_recog_2=800, # 2nd layer encoder neurons
-         n_hidden_gener_1=800, # 1st layer decoder neurons
-         n_hidden_gener_2=800, # 2nd layer decoder neurons
-         n_input=3200, # MNIST data input (img shape: 28*28)
+    dict(n_hidden_recog_1=500, # 1st layer encoder neurons
+         n_hidden_recog_2=500, # 2nd layer encoder neurons
+         n_hidden_gener_1=500, # 1st layer decoder neurons
+         n_hidden_gener_2=500, # 2nd layer decoder neurons
+         n_input=4608, # MNIST data input (img shape: 28*28)
          n_z=3)  # dimensionality of latent space
 
-vae = train(network_architecture, training_epochs=100)
-x_sample = mnist.test.next_batch(100)[0]
-x_reconstruct = vae.reconstruct(x_sample)
+vae = train(network_architecture, training_epochs=75)
+# x_sample = mnist.test.next_batch(100)[0]
+# x_reconstruct = vae.reconstruct(x_sample)
 
 # plt.figure(figsize=(8, 12))
 # for i in range(5):
@@ -264,8 +264,44 @@ x_reconstruct = vae.reconstruct(x_sample)
 #     plt.colorbar()
 # plt.tight_layout()
 # plt.show()
+
+x_sample_1 = pendulum_dataset.next_batch(100)
+batch_x = [np.reshape(before_img, (-1, 4608)) for
+                       ind, (before_img, control_signal, after_image, before_states, after_states) in
+                       enumerate(x_sample_1)]
+batch_x = np.squeeze(np.array(batch_x).astype(np.float32), axis=1)
+batch_x = np.multiply(batch_x, 1./255.)
+
+# batch_x_next = [np.reshape(after_image, (-1, 4608)) for
+#                             ind, (before_img, control_signal, after_image, before_states, after_states) in
+#                             enumerate(x_sample_1)]
+# batch_x_next = np.squeeze(np.array(batch_x_next).astype(np.float32), axis=1)
+# batch_x_next = np.multiply(batch_x_next, 1./255.)
 #
-#
+# batch_u = [np.reshape(control_signal, (-1, 4608)) for
+#                        ind, (before_img, control_signal, after_image, before_states, after_states) in
+#                        enumerate(x_sample_1)]
+# batch_u = np.squeeze(np.array(batch_u, np.float32), axis=1)
+
+
+x_reconstruct = vae.reconstruct(batch_x)
+print(x_reconstruct)
+
+plt.figure(figsize=(20, 30))
+for i in range(3):
+
+    plt.subplot(3, 2, 2*i + 1)
+    plt.imshow(x_reconstruct[i].reshape(48, 2 * 48),vmin=0, vmax=1, cmap="gray")
+    plt.title("Reconstruct")
+    plt.colorbar()
+    plt.subplot(3, 2, 2*i + 2)
+    plt.imshow(batch_x[i].reshape(48, 2 * 48), vmin=0, vmax=1,cmap="gray")
+    plt.title("Training Input")
+    plt.colorbar()
+plt.tight_layout()
+plt.show()
+
+
 # x_sample, y_sample = mnist.test.next_batch(5000)
 # z_mu = vae.transform(x_sample)
 # fig = plt.figure(figsize=(10, 10))

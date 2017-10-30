@@ -10,7 +10,7 @@ tf.set_random_seed(0)
 
 A=B=40
 
-x_dim = 3200
+x_dim = 4608
 u_dim = 1
 z_dim=3 # latent space dimensionality
 eps=1e-9 # numerical stability
@@ -49,8 +49,8 @@ class NormalDistribution(object):
     self.r=r
 
 def linear(x,output_dim):
-  w=tf.get_variable("w", [x.get_shape()[1], output_dim], dtype=tf.float32)
-  b=tf.get_variable("b", [output_dim], initializer=tf.constant_initializer(0.0), dtype=tf.float32)
+  w=tf.get_variable("w", [x.get_shape()[1], output_dim], initializer=tf.orthogonal_initializer(gain=1.1))
+  b=tf.get_variable("b", [output_dim], initializer=tf.constant_initializer(0.0))
   return tf.matmul(x,w)+b
 
 def ReLU(x,output_dim, scope):
@@ -60,8 +60,8 @@ def ReLU(x,output_dim, scope):
 
 def encode(x,share=None):
   with tf.variable_scope("encoder",reuse=share):
-    for l in range(2):
-      x=ReLU(x,800,"l"+str(l))
+    for l in range(3):
+      x=ReLU(x,150,"l"+str(l))
     return linear(x,2*z_dim)
 
 def KLGaussian(Q,N):
@@ -86,7 +86,7 @@ def sampleNormal(mu,sigma):
 
 def sampleQ_phi(h_enc,share=None):
   with tf.variable_scope("sampleQ_phi",reuse=share):
-    mu,log_sigma=tf.split(h_enc, 2, axis=1) # diagonal stdev values
+    mu,log_sigma=tf.split(linear(h_enc,z_dim*2), 2, axis=1) # diagonal stdev values
     sigma=tf.exp(log_sigma)
     return sampleNormal(mu,sigma), NormalDistribution(mu, sigma, log_sigma)
 
@@ -96,7 +96,7 @@ def transition(h):
     for l in range(2):
       h=ReLU(h,100,"l"+str(l))
     with tf.variable_scope("A"):
-      v,r=tf.split(linear(h,z_dim*2), 2, axis=1)
+      v,r=tf.split(linear(h,z_dim*2),2,axis=1)
       v1=tf.expand_dims(v,-1) # (batch, z_dim, 1)
       rT=tf.expand_dims(r,1) # batch, 1, z_dim
       I=tf.diag([1.]*z_dim)
@@ -125,7 +125,7 @@ def sampleQ_psi(z,u,Q_phi):
 def decode(z,share=None):
   with tf.variable_scope("decoder",reuse=share):
     for l in range(2):
-      z=ReLU(z,800,"l"+str(l))
+      z=ReLU(z,200,"l"+str(l))
     return linear(z,x_dim)
 
 def binary_crossentropy(t,o):
@@ -146,11 +146,11 @@ def latent_loss(Q):
 def sampleP_theta(h_dec,share=None):
   # sample x from bernoulli distribution with means p=W(h_dec)
   with tf.variable_scope("P_theta",reuse=share):
-    # p=linear(h_dec,x_dim)
-    return tf.sigmoid(h_dec) # mean of bernoulli distribution
+    p=linear(h_dec,x_dim)
+    return tf.sigmoid(p) # mean of bernoulli distribution
 
 # BUILD NETWORK
-batch_size=100
+batch_size=128
 
 x=tf.placeholder(tf.float32,[batch_size, x_dim])
 u=tf.placeholder(tf.float32, [batch_size, u_dim]) # control at time t
@@ -175,10 +175,10 @@ with tf.variable_scope("Loss"):
   L_x=recons_loss(x,x_recons)
   L_x_next=recons_loss(x_next,x_predict)
   L_z=latent_loss(Q_phi)
-  L_bound=L_x+L_z#+L_x_next
+  L_bound=L_x+L_x_next+L_z
   KL=KLGaussian(Q_psi,Q_phi_next)
   lambd=0.25
-  loss=tf.reduce_mean(L_bound) # average loss over minibatch to single scalar
+  loss=tf.reduce_mean(L_bound+lambd*KL) # average loss over minibatch to single scalar
 
 for v in tf.all_variables():
     print("%s : %s" % (v.name, v.get_shape()))
@@ -267,5 +267,41 @@ if __name__=="__main__":
       #   writer.add_summary(results[1], i)
     # if (i%100==0 and i < 1000) or (i % 1000 == 0):
     #   saver.save(sess,ckpt_file+"-%05d"%(i)+".ckpt")
+  x_sample_1 = pendulum_dataset.next_batch(128)
+  batch_x = [np.reshape(before_img, (-1, x_dim)) for
+             ind, (before_img, control_signal, after_image, before_states, after_states) in
+             enumerate(x_sample_1)]
+  batch_x = np.squeeze(np.array(batch_x).astype(np.float32), axis=1)
+  batch_x = np.multiply(batch_x, 1. / 255.)
 
+  batch_x_next = [np.reshape(after_image, (-1, x_dim)) for
+                  ind, (before_img, control_signal, after_image, before_states, after_states) in
+                  enumerate(x_sample_1)]
+  batch_x_next = np.squeeze(np.array(batch_x_next).astype(np.float32), axis=1)
+  batch_x_next = np.multiply(batch_x_next, 1. / 255.)
+
+  batch_u = [np.reshape(control_signal, (-1, u_dim)) for
+             ind, (before_img, control_signal, after_image, before_states, after_states) in
+             enumerate(x_sample_1)]
+  batch_u = np.squeeze(np.array(batch_u, np.float32), axis=1)
+
+  feed_dict = {
+    x: batch_x,
+    u: batch_u,
+    x_next: batch_x_next
+  }
+  x_reconstruct = sess.run(x_recons, feed_dict)
+
+  plt.figure(figsize=(20, 30))
+  for i in range(3):
+    plt.subplot(3, 2, 2 * i + 1)
+    plt.imshow(x_reconstruct[i].reshape(48, 2 * 48), vmin=0, vmax=1, cmap="gray")
+    plt.title("Reconstruct")
+    plt.colorbar()
+    plt.subplot(3, 2, 2 * i + 2)
+    plt.imshow(batch_x[i].reshape(48, 2 * 48), vmin=0, vmax=1, cmap="gray")
+    plt.title("Training Input")
+    plt.colorbar()
+  plt.tight_layout()
+  plt.show()
   sess.close()

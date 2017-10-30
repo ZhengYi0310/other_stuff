@@ -56,8 +56,8 @@ class PendulumData(object):
         return self.images[index], self.actions[index], self.images[index]
 
 class GymPendulumDatasetV2(object):
-    width = 40 * 2
-    height = 40
+    width = 48 * 2
+    height = 48
     action_dim = 1
 
     def __init__(self, dir):
@@ -121,8 +121,8 @@ class GymPendulumDatasetV2(object):
             os.makedirs(output_dir)
 
         for i in trange(sample_size):
-            th = np.random.uniform(0, np.pi * 2)
-            thdot = np.random.uniform(-8, 8)
+            th = np.random.uniform(-3, 3)
+            thdot = np.random.uniform(-10, 10)
 
             state = np.array([th, thdot])
             u0 = np.array([0])
@@ -208,13 +208,15 @@ class GymPendulumDatasetV2(object):
 
 if __name__=="__main__":
     # GymPendulumDatasetV2.sample(1000, 'data/pendulum_markov_train')
-    dataset = GymPendulumDatasetV2('data/pendulum_markov_train')
+    # GymPendulumDatasetV2.sample(100, 'data/pendulum_markov_test')
+    dataset = GymPendulumDatasetV2('data/pendulum_markov_test')
     perm0 = np.arange(dataset._num_examples)
-    before_image = [np.reshape(before_img, (-1, 3200)) for ind, (before_img,control_signal, after_image, before_states, after_states) in enumerate(dataset)]
-    print (np.squeeze(np.array(before_image, np.float64), axis=1)).shape
-    after_image = [np.reshape(after_image, (-1, 3200)) for
+    before_image = [np.reshape(before_img, (-1, 4608)) for ind, (before_img,control_signal, after_image, before_states, after_states) in enumerate(dataset)]
+    # print ((np.array(before_image, np.float64))).shape
+    # print np.array(before_image, np.float64)[0,:,23*48 + 24]
+    after_image = [np.reshape(after_image, (-1, 4608)) for
                  ind, (before_img, control_signal, after_image, before_states, after_states) in enumerate(dataset)]
-    print (np.squeeze(np.array(after_image, np.float64), axis=1)).shape
+    print ((np.array(after_image, np.float64))).shape
     control_signal = [np.reshape(control_signal, (-1, dataset.action_dim)) for ind, (before_img,control_signal, after_img, before_states, after_states) in enumerate(dataset)]
     print (np.squeeze(np.array(control_signal, np.float64), axis=1)).shape
     # print (dataset.next_batch(100)[0][0])
@@ -226,11 +228,13 @@ if __name__=="__main__":
     # dataset_after = (dataset[0][2])
     # print (dataset_before)
     # before_image = [before_image_single[before_image_single != 255] = 0 for ind,(before_image_single) in enumerate(before_image)]
-    for i in range(len(before_image)):
-        before_image[i][before_image[i] != 255] = 0.
-    plt.imshow(np.reshape(before_image[60], (40, 80)), cmap='gray')
+    # for i in range(len(before_image)):
+    #     before_image[i][before_image[i] != 255] = 0.
+    plt.imshow(np.reshape(before_image[60], (-1, 48, 2 * 48)))
     plt.show()
-    plt.imshow(np.reshape(after_image[0], (40, 80)), cmap='gray')
+    plt.imshow(np.reshape(after_image[0], (-1, 48,  2 * 48)))
     plt.show()
+    # a = np.array([[1, 2], [3, 4], [10, 11]])
+    # a = np.reshape(a, ())
     # print(dataset[0][3])
     # print(dataset[0][4])
